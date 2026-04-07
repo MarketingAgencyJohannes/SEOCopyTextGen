@@ -1,0 +1,38 @@
+# Web framework
+fastapi==0.115.12
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# Settings / validation
+pydantic-settings==2.8.1
+
+# Database
+sqlalchemy==2.0.40
+
+# Async HTTP client
+httpx==0.28.1
+
+# Claude API
+anthropic==0.51.0
+
+# NLP — tonality analysis
+nltk==3.9.1
+
+# Agent 1 — YouTube Data API
+google-api-python-client==2.166.0
+google-auth==2.40.1
+google-auth-httplib2==0.2.0
+
+# Agent 2 — SERP crawling
+playwright==1.51.0
+beautifulsoup4==4.13.3
+lxml==5.3.2
+
+# Agent 3 — Transcription
+youtube-transcript-api==1.0.3
+yt-dlp==2025.3.31
+openai-whisper==20240930
+
+# Output / storage
+pandas==2.2.3
+openpyxl==3.1.5
