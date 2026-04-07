@@ -33,7 +33,7 @@ async def api_key_middleware(request: Request, call_next):
 
 
 @app.on_event("startup")
-def on_startup():
+async def on_startup():
     create_tables()
 
 

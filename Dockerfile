@@ -1,26 +1,26 @@
 FROM python:3.11-slim
 
-# System deps: ffmpeg (Whisper), Chromium (Playwright/Agent 2)
+# Only ffmpeg needed at system level — Playwright manages its own Chromium
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
-    chromium \
-    chromium-driver \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
+# Install Python deps first (cached layer)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright's bundled Chromium (used by Agent 2)
+# Playwright installs Chromium + all its own system deps
 RUN playwright install chromium --with-deps
 
-# Download NLTK punkt tokenizer data
+# Download NLTK tokenizer data
 RUN python -c "import nltk; nltk.download('punkt', quiet=True); nltk.download('punkt_tab', quiet=True)"
 
 COPY . .
 
-# Create DB tables at build time (also runs at startup via on_event)
+# Create SQLite tables at build time
 RUN python scripts/init_db.py
 
 EXPOSE 8000

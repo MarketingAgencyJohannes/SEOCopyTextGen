@@ -26,10 +26,14 @@ _whisper_model = None
 def _get_whisper_model():
     global _whisper_model
     if _whisper_model is None and settings.whisper_enabled:
-        import whisper
-        logger.info("Loading Whisper model '%s'...", settings.whisper_model_size)
-        _whisper_model = whisper.load_model(settings.whisper_model_size)
-        logger.info("Whisper model loaded.")
+        from faster_whisper import WhisperModel
+        logger.info("Loading faster-whisper model '%s'...", settings.whisper_model_size)
+        _whisper_model = WhisperModel(
+            settings.whisper_model_size,
+            device="cpu",
+            compute_type="int8",
+        )
+        logger.info("faster-whisper model loaded.")
     return _whisper_model
 
 
@@ -117,9 +121,9 @@ def _fetch_via_whisper(video_id: str, video_url: str) -> tuple[str, str] | None:
             return None
 
         try:
-            result = model.transcribe(actual_path)
-            text = _clean_transcript_text(result["text"])
-            lang = result.get("language", "unknown")
+            segments, info = model.transcribe(actual_path)
+            text = _clean_transcript_text(" ".join(seg.text for seg in segments))
+            lang = info.language if hasattr(info, "language") else "unknown"
             return text, lang
         except Exception as exc:
             logger.warning("Whisper transcription failed for %s: %s", video_id, exc)
