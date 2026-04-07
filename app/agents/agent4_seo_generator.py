@@ -92,7 +92,7 @@ def _extract_tonality(transcripts: list[str]) -> TonalityProfile:
         medium_sentence_share=round(medium, 2),
         long_sentence_share=round(long_, 2),
         dominant_opener=dominant_opener,
-        register=profile_json.get("register", "conversational"),
+        vocab_register=profile_json.get("register", "conversational"),
         characteristic_connectors=profile_json.get("characteristic_connectors", []),
         emotional_tone=profile_json.get("emotional_tone", "empathetic"),
         burstiness=burstiness,
@@ -131,7 +131,7 @@ def _build_generation_prompt(req: SEOCopyRequest, profile: TonalityProfile) -> t
 ~{int(profile.medium_sentence_share*100)}% medium (9-18 words), \
 ~{int(profile.long_sentence_share*100)}% long (19+ words)
 - Sentence burstiness: {profile.burstiness} — {'frequently alternate short and long sentences' if profile.burstiness == 'high' else 'keep sentence lengths consistent'}
-- Register: {profile.register}
+- Register: {profile.vocab_register}
 - Emotional tone: {profile.emotional_tone}
 - Dominant sentence opener: {profile.dominant_opener}
 - Naturally include 3-5 of these connectors: {connectors}
@@ -325,7 +325,7 @@ def _validate_tonality(text: str, profile: TonalityProfile) -> bool:
         f"Tonality profile:\n{profile.model_dump_json(indent=2)}\n\n"
         f"Check:\n"
         f"- Sentence burstiness matches '{profile.burstiness}'\n"
-        f"- Register is '{profile.register}'\n"
+        f"- Register is '{profile.vocab_register}'\n"
         f"- At least 3 connectors from [{connectors_str}] are present\n"
         f"- No AI-typical clichés\n"
         f"- Emotional tone is '{profile.emotional_tone}' throughout\n\n"
@@ -351,7 +351,7 @@ def run_seo_generation(req: SEOCopyRequest, transcripts: list[str]) -> SEOCopyRe
         medium_sentence_share=0.45,
         long_sentence_share=0.20,
         dominant_opener="conjunction",
-        register="conversational",
+        vocab_register="conversational",
         characteristic_connectors=[],
         emotional_tone="empathetic",
         burstiness="high",

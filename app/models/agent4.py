@@ -30,7 +30,7 @@ class TonalityProfile(BaseModel):
     medium_sentence_share: float
     long_sentence_share: float
     dominant_opener: str
-    register: str
+    vocab_register: str
     characteristic_connectors: list[str]
     emotional_tone: str
     burstiness: str
