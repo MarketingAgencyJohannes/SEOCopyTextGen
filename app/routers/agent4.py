@@ -1,4 +1,5 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi.responses import PlainTextResponse
 
 from app.models.agent4 import SEOCopyRequest
 from app.models.jobs import JobCreated
@@ -41,3 +42,20 @@ def generate_seo_copy(req: SEOCopyRequest, background_tasks: BackgroundTasks):
     job_id = create_job("agent4")
     background_tasks.add_task(_background_generate, job_id, req, transcripts)
     return JobCreated(job_id=job_id)
+
+
+@router.get("/download/{job_id}")
+def download_seo_copy(job_id: str):
+    """Download the generated SEO copy as a plain .txt file."""
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job["status"] != "completed":
+        raise HTTPException(status_code=400, detail=f"Job not completed yet (status: {job['status']})")
+
+    text = job.get("result", {}).get("text", "")
+    slug = job_id[:8]
+    return PlainTextResponse(
+        content=text,
+        headers={"Content-Disposition": f"attachment; filename=seo_copy_{slug}.txt"},
+    )
