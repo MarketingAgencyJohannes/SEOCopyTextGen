@@ -157,11 +157,11 @@ def run_channel_scrape(req: ChannelScrapeRequest) -> ChannelScrapeResult:
     slug = re.sub(r"[^\w]", "_", channel_title)[:40]
 
     csv_bytes = df.to_csv(index=False).encode("utf-8")
-    csv_url = upload_bytes(csv_bytes, f"{slug}_videos.csv", "text/csv", folder_id)
+    csv_url, drive_error = upload_bytes(csv_bytes, f"{slug}_videos.csv", "text/csv", folder_id)
 
     xlsx_buffer = io.BytesIO()
     df.to_excel(xlsx_buffer, index=False)
-    xlsx_url = upload_bytes(
+    xlsx_url, _ = upload_bytes(
         xlsx_buffer.getvalue(),
         f"{slug}_videos.xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -175,4 +175,5 @@ def run_channel_scrape(req: ChannelScrapeRequest) -> ChannelScrapeResult:
         videos=entries,
         csv_drive_url=csv_url,
         xlsx_drive_url=xlsx_url,
+        drive_error=drive_error,
     )

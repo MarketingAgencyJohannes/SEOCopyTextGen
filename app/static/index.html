@@ -426,6 +426,32 @@
           </button>
           <div x-show="savedMsg" class="text-center text-sm text-emerald-600 font-medium" x-text="savedMsg"></div>
         </div>
+
+        <!-- Drive test -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 mt-4">
+          <h3 class="text-sm font-semibold text-slate-700">Google Drive Connection</h3>
+          <button @click="testDrive()" :disabled="driveTestLoading" class="w-full flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-800 disabled:opacity-60 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors">
+            <svg x-show="driveTestLoading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            <span>Test Drive Connection</span>
+          </button>
+          <div x-show="driveTestResult" class="rounded-xl p-3 text-sm"
+               :class="driveTestResult?.status === 'ok' ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' : 'bg-red-50 border border-red-200 text-red-800'">
+            <template x-if="driveTestResult?.status === 'ok'">
+              <div>
+                <p class="font-semibold mb-1">✓ Drive connected successfully</p>
+                <p class="text-xs">Folder: <strong x-text="driveTestResult.folder_name"></strong></p>
+                <p class="text-xs">Account: <span x-text="driveTestResult.service_account"></span></p>
+              </div>
+            </template>
+            <template x-if="driveTestResult?.status === 'error'">
+              <div>
+                <p class="font-semibold mb-1">✗ Drive connection failed</p>
+                <p class="text-xs font-mono mt-1" x-text="driveTestResult.detail"></p>
+                <p class="text-xs mt-2 text-red-600">Most likely fix: enable <strong>Google Drive API</strong> in your GCP project → APIs &amp; Services → Library → search "Google Drive API" → Enable.</p>
+              </div>
+            </template>
+          </div>
+        </div>
         <div class="mt-4 bg-slate-100 rounded-2xl p-4 text-xs text-slate-500 space-y-1">
           <p><strong>How to find your API key:</strong></p>
           <p>Go to Railway → your project → Variables → copy the value of <code>API_SECRET_KEY</code>.</p>
@@ -464,6 +490,8 @@ function app() {
     activeJob: null,
     pollingTimer: null,
     toast: { show: false, type: 'loading', title: '', msg: '' },
+    driveTestResult: null,
+    driveTestLoading: false,
 
     agents: [
       { id: 1, step: '1', page: 'agent1', label: 'Channel Scraper', desc: 'Extract all video data from a YouTube channel into a spreadsheet.', color: 'bg-red-100', icon: '<svg class="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>' },
@@ -529,6 +557,19 @@ function app() {
       localStorage.setItem('seo_api_key', this.apiKey);
       this.savedMsg = '✓ API key saved';
       setTimeout(() => { this.savedMsg = ''; }, 3000);
+    },
+
+    async testDrive() {
+      this.driveTestLoading = true;
+      this.driveTestResult = null;
+      try {
+        const res = await fetch('/drive/test', { headers: this.apiKey ? { 'X-API-Key': this.apiKey } : {} });
+        this.driveTestResult = await res.json();
+      } catch (e) {
+        this.driveTestResult = { status: 'error', detail: e.message };
+      } finally {
+        this.driveTestLoading = false;
+      }
     },
 
     async submitAgent1() {
@@ -608,6 +649,7 @@ function app() {
             <a href="/agent1/download/${job.job_id}" download class="flex items-center justify-center gap-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">⬇ Download CSV</a>
             ${r.csv_drive_url ? `<a href="${r.csv_drive_url}" target="_blank" class="flex items-center justify-center gap-2 w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold py-2.5 rounded-xl transition-colors">↗ Open CSV in Google Drive</a>` : ''}
             ${r.xlsx_drive_url ? `<a href="${r.xlsx_drive_url}" target="_blank" class="flex items-center justify-center gap-2 w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold py-2.5 rounded-xl transition-colors">↗ Open Excel in Google Drive</a>` : ''}
+            ${r.drive_error ? `<div class="bg-red-50 border border-red-200 rounded-xl p-3"><p class="text-xs font-semibold text-red-700 mb-1">⚠ Google Drive upload failed</p><p class="text-xs font-mono text-red-600">${r.drive_error}</p><p class="text-xs text-red-500 mt-1">Go to Settings → Test Drive Connection for diagnosis.</p></div>` : ''}
             <p class="text-xs text-slate-400 font-mono">Job ID: ${job.job_id}</p></div>`;
         }
         if (job.agent === 'agent2') {
@@ -621,6 +663,7 @@ function app() {
             </div>
             ${gaps.length ? `<div class="space-y-2">${gaps.map((g,i) => `<div class="border border-slate-200 rounded-xl p-3"><div class="flex items-start justify-between gap-2 mb-1"><p class="text-sm font-semibold text-slate-800">${i+1}. ${g.topic}</p><span class="text-xs px-2 py-0.5 rounded-full shrink-0 ${g.competition_level==='Low'?'bg-emerald-100 text-emerald-700':g.competition_level==='Medium'?'bg-amber-100 text-amber-700':'bg-red-100 text-red-700'}">${g.competition_level}</span></div><p class="text-xs text-slate-600 italic mb-1">"${g.suggested_title}"</p><p class="text-xs text-slate-500">${g.reasoning}</p></div>`).join('')}</div>` : ''}
             ${r.report_drive_url ? `<a href="${r.report_drive_url}" target="_blank" class="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">⬇ Open Full Report in Drive</a>` : ''}
+            ${r.drive_error ? `<div class="bg-red-50 border border-red-200 rounded-xl p-3"><p class="text-xs font-semibold text-red-700 mb-1">⚠ Google Drive upload failed</p><p class="text-xs font-mono text-red-600">${r.drive_error}</p><p class="text-xs text-red-500 mt-1">Go to Settings → Test Drive Connection for diagnosis.</p></div>` : ''}
             <p class="text-xs text-slate-400 font-mono">Job ID: ${job.job_id}</p></div>`;
         }
         if (job.agent === 'agent3') {

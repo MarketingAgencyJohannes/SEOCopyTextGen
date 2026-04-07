@@ -265,7 +265,8 @@ def run_serp_analysis(req: SerpAnalysisRequest) -> SerpAnalysisResult:
     # Upload report to Drive
     report_bytes = _build_report(full_keyword, result)
     slug = re.sub(r"[^\w]", "_", full_keyword)[:50]
-    drive_url = upload_bytes(report_bytes, f"gap_report_{slug}.txt", "text/plain")
+    drive_url, drive_error = upload_bytes(report_bytes, f"gap_report_{slug}.txt", "text/plain")
     result.report_drive_url = drive_url
+    result.drive_error = drive_error
 
     return result

@@ -31,3 +31,4 @@ class ChannelScrapeResult(BaseModel):
     videos: list[VideoEntry]
     csv_drive_url: str | None = None
     xlsx_drive_url: str | None = None
+    drive_error: str | None = None

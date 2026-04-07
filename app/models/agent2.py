@@ -37,3 +37,4 @@ class SerpAnalysisResult(BaseModel):
     content_gaps: list[ContentGap]
     page_summaries: list[PageSummary]
     report_drive_url: str | None = None
+    drive_error: str | None = None
