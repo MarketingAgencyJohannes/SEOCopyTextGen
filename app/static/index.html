@@ -605,8 +605,9 @@ function app() {
               <div class="bg-slate-50 rounded-xl p-3 text-center"><p class="text-2xl font-bold text-brand-600">${r.video_count}</p><p class="text-xs text-slate-500 mt-1">Videos found</p></div>
               <div class="bg-slate-50 rounded-xl p-3 text-center"><p class="text-sm font-bold text-slate-700 break-all">${r.channel_id}</p><p class="text-xs text-slate-500 mt-1">Channel ID</p></div>
             </div>
-            ${r.csv_drive_url ? `<a href="${r.csv_drive_url}" target="_blank" class="flex items-center justify-center gap-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">⬇ Open CSV in Google Drive</a>` : ''}
-            ${r.xlsx_drive_url ? `<a href="${r.xlsx_drive_url}" target="_blank" class="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">⬇ Open Excel in Google Drive</a>` : ''}
+            <a href="/agent1/download/${job.job_id}" download class="flex items-center justify-center gap-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">⬇ Download CSV</a>
+            ${r.csv_drive_url ? `<a href="${r.csv_drive_url}" target="_blank" class="flex items-center justify-center gap-2 w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold py-2.5 rounded-xl transition-colors">↗ Open CSV in Google Drive</a>` : ''}
+            ${r.xlsx_drive_url ? `<a href="${r.xlsx_drive_url}" target="_blank" class="flex items-center justify-center gap-2 w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold py-2.5 rounded-xl transition-colors">↗ Open Excel in Google Drive</a>` : ''}
             <p class="text-xs text-slate-400 font-mono">Job ID: ${job.job_id}</p></div>`;
         }
         if (job.agent === 'agent2') {
