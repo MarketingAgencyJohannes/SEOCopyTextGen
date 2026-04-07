@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SEO Copy Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            brand: { 50:'#eef2ff', 100:'#e0e7ff', 500:'#6366f1', 600:'#4f46e5', 700:'#4338ca', 800:'#3730a3', 900:'#312e81' }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .sidebar-enter { transform: translateX(-100%); }
+    .prose-result { white-space: pre-wrap; font-family: inherit; line-height: 1.7; }
+    .step-connector::after { content:''; position:absolute; left:50%; top:100%; width:2px; height:24px; background:#e2e8f0; transform:translateX(-50%); }
+    ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:#f1f5f9; } ::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
+  </style>
+</head>
+
+<body class="h-full bg-slate-50 font-sans text-slate-800" x-data="app()" x-cloak>
+
+  <!-- ── MOBILE TOP BAR ── -->
+  <div class="lg:hidden fixed top-0 inset-x-0 z-40 flex items-center justify-between bg-brand-900 px-4 py-3 shadow-lg">
+    <div class="flex items-center gap-2">
+      <div class="w-7 h-7 rounded-lg bg-brand-500 flex items-center justify-center">
+        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      </div>
+      <span class="text-white font-semibold text-sm">SEO Copy Generator</span>
+    </div>
+    <button @click="sidebarOpen = !sidebarOpen" class="text-white p-1 rounded">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+  </div>
+
+  <!-- ── MOBILE OVERLAY ── -->
+  <div x-show="sidebarOpen" @click="sidebarOpen=false" class="lg:hidden fixed inset-0 bg-black/50 z-30 transition-opacity"></div>
+
+  <div class="flex h-full">
+    <!-- ══ SIDEBAR ══ -->
+    <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+           class="fixed lg:static inset-y-0 left-0 z-40 w-64 bg-brand-900 flex flex-col transition-transform duration-200 ease-in-out lg:transition-none">
+
+      <!-- Logo -->
+      <div class="hidden lg:flex items-center gap-3 px-5 py-5 border-b border-brand-800">
+        <div class="w-8 h-8 rounded-xl bg-brand-500 flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        </div>
+        <div>
+          <p class="text-white font-bold text-sm leading-tight">SEO Copy</p>
+          <p class="text-brand-300 text-xs">Generator</p>
+        </div>
+      </div>
+      <div class="lg:hidden h-14"></div>
+
+      <!-- Nav -->
+      <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <button @click="navigate('home')" :class="page==='home' ? 'bg-brand-700 text-white' : 'text-brand-200 hover:bg-brand-800 hover:text-white'"
+                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          Dashboard
+        </button>
+
+        <p class="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-wider text-brand-400">Workflow</p>
+
+        <template x-for="agent in agents" :key="agent.id">
+          <button @click="navigate(agent.page); sidebarOpen=false"
+                  :class="page===agent.page ? 'bg-brand-700 text-white' : 'text-brand-200 hover:bg-brand-800 hover:text-white'"
+                  class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors">
+            <span class="w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center shrink-0"
+                  :class="page===agent.page ? 'bg-brand-500 text-white' : 'bg-brand-800 text-brand-300'" x-text="agent.step"></span>
+            <span x-text="agent.label" class="truncate"></span>
+          </button>
+        </template>
+
+        <p class="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-wider text-brand-400">System</p>
+        <button @click="navigate('settings'); sidebarOpen=false" :class="page==='settings' ? 'bg-brand-700 text-white' : 'text-brand-200 hover:bg-brand-800 hover:text-white'"
+                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          Settings
+        </button>
+      </nav>
+
+      <!-- API status indicator -->
+      <div class="px-4 py-3 border-t border-brand-800">
+        <div class="flex items-center gap-2">
+          <div :class="apiKey ? 'bg-emerald-400' : 'bg-amber-400'" class="w-2 h-2 rounded-full"></div>
+          <span class="text-xs text-brand-300" x-text="apiKey ? 'API key configured' : 'No API key set'"></span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ══ MAIN AREA ══ -->
+    <main class="flex-1 overflow-y-auto min-w-0">
+      <div class="lg:hidden h-14"></div>
+
+      <!-- ── DASHBOARD ── -->
+      <div x-show="page === 'home'" class="p-6 lg:p-8 max-w-5xl mx-auto">
+        <div class="mb-8">
+          <h1 class="text-2xl font-bold text-slate-900">Welcome to SEO Copy Generator</h1>
+          <p class="mt-1 text-slate-500">A 4-step pipeline to create SEO-optimised content that ranks on Google.</p>
+        </div>
+
+        <!-- Workflow cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+          <template x-for="agent in agents" :key="agent.id">
+            <button @click="navigate(agent.page)"
+                    class="text-left bg-white rounded-2xl border border-slate-200 p-5 hover:border-brand-400 hover:shadow-md transition-all group">
+              <div class="flex items-start gap-4">
+                <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform" :class="agent.color" x-html="agent.icon"></div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2 mb-1">
+                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-400" x-text="'Step '+agent.step"></span>
+                  </div>
+                  <p class="font-semibold text-slate-900 text-sm" x-text="agent.label"></p>
+                  <p class="text-xs text-slate-500 mt-1 leading-relaxed" x-text="agent.desc"></p>
+                </div>
+              </div>
+            </button>
+          </template>
+        </div>
+
+        <!-- Recent Jobs -->
+        <div x-show="jobs.length > 0">
+          <h2 class="text-base font-semibold text-slate-900 mb-3">Recent Jobs</h2>
+          <div class="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+            <template x-for="job in jobs.slice(0,8)" :key="job.job_id">
+              <div class="flex items-center justify-between px-4 py-3 hover:bg-slate-50 cursor-pointer" @click="viewJob(job)">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="text-xs font-mono text-slate-400 shrink-0" x-text="job.agent"></span>
+                  <span class="text-xs text-slate-500 truncate" x-text="job.job_id"></span>
+                </div>
+                <span class="ml-3 shrink-0 text-xs font-medium px-2 py-0.5 rounded-full"
+                      :class="{'bg-emerald-100 text-emerald-700':job.status==='completed','bg-red-100 text-red-700':job.status==='failed','bg-amber-100 text-amber-700':job.status==='running','bg-slate-100 text-slate-600':job.status==='pending'}"
+                      x-text="job.status"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+        <div x-show="jobs.length === 0" class="bg-white rounded-2xl border border-slate-200 p-10 text-center text-slate-400 text-sm">
+          No jobs yet — start by selecting a workflow step above.
+        </div>
+      </div>
+
+      <!-- ── AGENT 1: CHANNEL SCRAPER ── -->
+      <div x-show="page === 'agent1'" class="p-6 lg:p-8 max-w-2xl mx-auto">
+        <div class="mb-6">
+          <div class="flex items-center gap-3 mb-2">
+            <div class="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center">
+              <svg class="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+            </div>
+            <div>
+              <h1 class="text-xl font-bold text-slate-900">YouTube Channel Scraper</h1>
+              <p class="text-sm text-slate-500">Extract all video metadata from a YouTube channel</p>
+            </div>
+          </div>
+        </div>
+
+        <form @submit.prevent="submitAgent1()" class="space-y-5">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">YouTube Channel URL <span class="text-red-500">*</span></label>
+            <input x-model="a1.channel_url" type="url" required placeholder="https://www.youtube.com/@channelname"
+                   class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent" />
+            <p class="mt-1 text-xs text-slate-400">Supports @handle or /channel/ID formats</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Max Videos</label>
+            <input x-model.number="a1.max_videos" type="number" min="1" max="5000"
+                   class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            <p class="mt-1 text-xs text-slate-400">Default: 500. Use a smaller number for testing.</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Google Drive Folder ID <span class="text-slate-400">(optional)</span></label>
+            <input x-model="a1.drive_folder_id" type="text" placeholder="Leave blank to use the default folder"
+                   class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          </div>
+          <button type="submit" :disabled="loading" class="w-full flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white font-semibold py-2.5 px-4 rounded-xl transition-colors">
+            <svg x-show="loading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            <span x-text="loading ? 'Starting…' : 'Scrape Channel'"></span>
+          </button>
+        </form>
+        <div x-show="activeJob && activeJob.agent === 'agent1'" class="mt-6" x-html="renderJobResult()"></div>
+      </div>
+
+      <!-- ── AGENT 2: SERP ANALYZER ── -->
+      <div x-show="page === 'agent2'" class="p-6 lg:p-8 max-w-2xl mx-auto">
+        <div class="mb-6">
+          <div class="flex items-center gap-3 mb-2">
+            <div class="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center">
+              <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            </div>
+            <div>
+              <h1 class="text-xl font-bold text-slate-900">SERP Gap Analyzer</h1>
+              <p class="text-sm text-slate-500">Find content gaps in Google's top 30 results for any keyword</p>
+            </div>
+          </div>
+        </div>
+
+        <form @submit.prevent="submitAgent2()" class="space-y-5">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Primary Keyword <span class="text-red-500">*</span></label>
+            <input x-model="a2.keyword" type="text" required placeholder="e.g. psychologische Beratung"
+                   class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Location <span class="text-slate-400">(optional)</span></label>
+            <input x-model="a2.location" type="text" placeholder="e.g. Freiburg"
+                   class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">Language</label>
+              <select x-model="a2.language" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+                <option value="de">German (de)</option>
+                <option value="en">English (en)</option>
+                <option value="fr">French (fr)</option>
+                <option value="es">Spanish (es)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">Results to analyse</label>
+              <input x-model.number="a2.num_results" type="number" min="5" max="30"
+                     class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+          </div>
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700">
+            ⏱ This step typically takes <strong>2–5 minutes</strong> — it crawls up to 30 web pages and analyses them with Claude.
+          </div>
+          <button type="submit" :disabled="loading" class="w-full flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white font-semibold py-2.5 px-4 rounded-xl transition-colors">
+            <svg x-show="loading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            <span x-text="loading ? 'Analysing…' : 'Analyse SERP'"></span>
+          </button>
+        </form>
+        <div x-show="activeJob && activeJob.agent === 'agent2'" class="mt-6" x-html="renderJobResult()"></div>
+      </div>
+
+      <!-- ── AGENT 3: TRANSCRIBER ── -->
+      <div x-show="page === 'agent3'" class="p-6 lg:p-8 max-w-2xl mx-auto">
+        <div class="mb-6">
+          <div class="flex items-center gap-3 mb-2">
+            <div class="w-9 h-9 rounded-xl bg-purple-100 flex items-center justify-center">
+              <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+            </div>
+            <div>
+              <h1 class="text-xl font-bold text-slate-900">YouTube Transcriber</h1>
+              <p class="text-sm text-slate-500">Extract transcripts to use as tone reference for writing</p>
+            </div>
+          </div>
+        </div>
+
+        <form @submit.prevent="submitAgent3()" class="space-y-5">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Video URLs <span class="text-red-500">*</span></label>
+            <textarea x-model="a3.video_urls" rows="5" required placeholder="https://www.youtube.com/watch?v=VIDEO_ID&#10;https://www.youtube.com/watch?v=VIDEO_ID&#10;(one URL per line, max 20)"
+                      class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none font-mono"></textarea>
+            <p class="mt-1 text-xs text-slate-400">Add 1–5 videos from the same speaker for best tone matching</p>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">Preferred Language</label>
+              <select x-model="a3.language" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+                <option value="de">German (de)</option>
+                <option value="en">English (en)</option>
+                <option value="fr">French (fr)</option>
+                <option value="es">Spanish (es)</option>
+              </select>
+            </div>
+            <div class="flex flex-col justify-center">
+              <label class="flex items-center gap-2 cursor-pointer mt-5">
+                <div class="relative">
+                  <input type="checkbox" x-model="a3.whisper" class="sr-only" />
+                  <div :class="a3.whisper ? 'bg-brand-600' : 'bg-slate-200'" class="w-10 h-5 rounded-full transition-colors"></div>
+                  <div :class="a3.whisper ? 'translate-x-5' : 'translate-x-0'" class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform"></div>
+                </div>
+                <span class="text-sm text-slate-700">Whisper fallback</span>
+              </label>
+              <p class="text-xs text-slate-400 mt-0.5 ml-12">Use AI when no captions available</p>
+            </div>
+          </div>
+          <button type="submit" :disabled="loading" class="w-full flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white font-semibold py-2.5 px-4 rounded-xl transition-colors">
+            <svg x-show="loading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            <span x-text="loading ? 'Transcribing…' : 'Get Transcripts'"></span>
+          </button>
+        </form>
+        <div x-show="activeJob && activeJob.agent === 'agent3'" class="mt-6" x-html="renderJobResult()"></div>
+      </div>
+
+      <!-- ── AGENT 4: COPY GENERATOR ── -->
+      <div x-show="page === 'agent4'" class="p-6 lg:p-8 max-w-2xl mx-auto">
+        <div class="mb-6">
+          <div class="flex items-center gap-3 mb-2">
+            <div class="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center">
+              <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            </div>
+            <div>
+              <h1 class="text-xl font-bold text-slate-900">SEO Copy Generator</h1>
+              <p class="text-sm text-slate-500">Generate 850-word SEO-optimised content with Claude</p>
+            </div>
+          </div>
+        </div>
+
+        <form @submit.prevent="submitAgent4()" class="space-y-5">
+          <!-- Keyword & Topic -->
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
+            <h3 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <span class="w-5 h-5 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center">1</span>
+              Keyword & Topic
+            </h3>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">Primary Keyword <span class="text-red-500">*</span></label>
+              <input x-model="a4.keyword" type="text" required placeholder="e.g. psychologische Beratung in Freiburg"
+                     class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              <p class="mt-1 text-xs text-slate-400">Always include the location (e.g. "in Freiburg")</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">Content Topic <span class="text-red-500">*</span></label>
+              <textarea x-model="a4.content_topic" rows="3" required placeholder="Describe the specific angle to cover — ideally from your SERP gap report. E.g. 'How psychological counselling helps professionals recover from burnout — a topic not yet covered by competitors.'"
+                        class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"></textarea>
+            </div>
+          </div>
+
+          <!-- Business Info -->
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
+            <h3 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <span class="w-5 h-5 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center">2</span>
+              Business Information
+            </h3>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Company Name <span class="text-red-500">*</span></label>
+                <input x-model="a4.company_name" required placeholder="Seelen-Kompass"
+                       class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Expert Name <span class="text-red-500">*</span></label>
+                <input x-model="a4.expert_name" required placeholder="Florian Bauer"
+                       class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Location <span class="text-red-500">*</span></label>
+              <input x-model="a4.location_val" required placeholder="Freiburg"
+                     class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Target Audience <span class="text-red-500">*</span></label>
+              <input x-model="a4.target_audience" required placeholder="adults experiencing professional or personal disorientation"
+                     class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Unique Selling Proposition (USP) <span class="text-red-500">*</span></label>
+              <textarea x-model="a4.usp" rows="2" required placeholder="What makes this business different? Be specific. E.g. 'Florian combines psychological counselling with an engineering mindset — an approach no other counsellor in Freiburg offers.'"
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"></textarea>
+            </div>
+          </div>
+
+          <!-- CTA -->
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
+            <h3 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <span class="w-5 h-5 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center">3</span>
+              Call to Action
+            </h3>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">What should the reader do? <span class="text-red-500">*</span></label>
+              <textarea x-model="a4.cta" rows="2" required placeholder="Book a free 30-minute initial consultation via the contact form. Tone: inviting, low barrier, no pressure."
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"></textarea>
+            </div>
+          </div>
+
+          <!-- Tone source -->
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
+            <h3 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <span class="w-5 h-5 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center">4</span>
+              Tone Reference <span class="text-slate-400 font-normal text-xs ml-1">(optional but recommended)</span>
+            </h3>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Transcript Job ID from Step 3</label>
+              <input x-model="a4.transcript_job_id" placeholder="Paste the job_id from your transcription result"
+                     class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 font-mono" />
+              <p class="mt-1 text-xs text-slate-400">Or paste transcript text directly below</p>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Paste Transcript Text</label>
+              <textarea x-model="a4.transcript_text" rows="4" placeholder="Paste one or more transcript texts here (separated by a blank line)..."
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"></textarea>
+            </div>
+          </div>
+
+          <button type="submit" :disabled="loading" class="w-full flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white font-semibold py-3 px-4 rounded-xl transition-colors text-sm">
+            <svg x-show="loading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            <svg x-show="!loading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            <span x-text="loading ? 'Generating…' : 'Generate SEO Copy'"></span>
+          </button>
+        </form>
+        <div x-show="activeJob && activeJob.agent === 'agent4'" class="mt-6" x-html="renderAgent4Result()"></div>
+      </div>
+
+      <!-- ── SETTINGS ── -->
+      <div x-show="page === 'settings'" class="p-6 lg:p-8 max-w-xl mx-auto">
+        <h1 class="text-xl font-bold text-slate-900 mb-6">Settings</h1>
+        <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-5">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">API Secret Key</label>
+            <div class="flex gap-2">
+              <input x-model="apiKey" :type="showKey ? 'text' : 'password'" placeholder="Enter your API secret key"
+                     class="flex-1 px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 font-mono" />
+              <button type="button" @click="showKey = !showKey" class="px-3 border border-slate-300 rounded-xl text-slate-500 hover:bg-slate-50 text-xs">
+                <span x-text="showKey ? 'Hide' : 'Show'"></span>
+              </button>
+            </div>
+            <p class="mt-1 text-xs text-slate-400">This matches the <code class="bg-slate-100 px-1 rounded">API_SECRET_KEY</code> variable set in Railway. Stored locally in your browser.</p>
+          </div>
+          <button @click="saveApiKey()" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors">
+            Save Key
+          </button>
+          <div x-show="savedMsg" class="text-center text-sm text-emerald-600 font-medium" x-text="savedMsg"></div>
+        </div>
+        <div class="mt-4 bg-slate-100 rounded-2xl p-4 text-xs text-slate-500 space-y-1">
+          <p><strong>How to find your API key:</strong></p>
+          <p>Go to Railway → your project → Variables → copy the value of <code>API_SECRET_KEY</code>.</p>
+          <p class="mt-2">If you left it blank in Railway, you can leave this empty too.</p>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ── JOB STATUS TOAST ── -->
+  <div x-show="toast.show" x-transition
+       class="fixed bottom-4 right-4 z-50 flex items-center gap-3 bg-white border border-slate-200 shadow-xl rounded-2xl px-4 py-3 max-w-xs">
+    <div :class="toast.type==='success' ? 'bg-emerald-100' : toast.type==='error' ? 'bg-red-100' : 'bg-amber-100'"
+         class="w-8 h-8 rounded-full flex items-center justify-center shrink-0">
+      <svg x-show="toast.type==='success'" class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+      <svg x-show="toast.type==='error'" class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      <svg x-show="toast.type==='loading'" class="w-4 h-4 text-amber-600 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+    </div>
+    <div>
+      <p class="text-sm font-medium text-slate-900" x-text="toast.title"></p>
+      <p class="text-xs text-slate-500" x-text="toast.msg"></p>
+    </div>
+  </div>
+
+<script>
+function app() {
+  return {
+    page: 'home',
+    sidebarOpen: false,
+    loading: false,
+    showKey: false,
+    savedMsg: '',
+    apiKey: localStorage.getItem('seo_api_key') || '',
+    jobs: JSON.parse(localStorage.getItem('seo_jobs') || '[]'),
+    activeJob: null,
+    pollingTimer: null,
+    toast: { show: false, type: 'loading', title: '', msg: '' },
+
+    agents: [
+      { id: 1, step: '1', page: 'agent1', label: 'Channel Scraper', desc: 'Extract all video data from a YouTube channel into a spreadsheet.', color: 'bg-red-100', icon: '<svg class="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>' },
+      { id: 2, step: '2', page: 'agent2', label: 'SERP Analyzer', desc: 'Identify content gaps in Google\'s top results for your keyword.', color: 'bg-blue-100', icon: '<svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>' },
+      { id: 3, step: '3', page: 'agent3', label: 'Transcriber', desc: 'Get transcripts from YouTube videos to use as tone reference.', color: 'bg-purple-100', icon: '<svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>' },
+      { id: 4, step: '4', page: 'agent4', label: 'Copy Generator', desc: 'Generate 850-word SEO-optimised text with Claude AI.', color: 'bg-emerald-100', icon: '<svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>' },
+    ],
+
+    // Form state
+    a1: { channel_url: '', max_videos: 500, drive_folder_id: '' },
+    a2: { keyword: '', location: '', language: 'de', num_results: 30 },
+    a3: { video_urls: '', language: 'de', whisper: true },
+    a4: { keyword: '', content_topic: '', company_name: '', expert_name: '', location_val: '', target_audience: '', usp: '', cta: '', transcript_job_id: '', transcript_text: '' },
+
+    navigate(p) { this.page = p; this.sidebarOpen = false; },
+
+    async api(method, path, body) {
+      const headers = { 'Content-Type': 'application/json' };
+      if (this.apiKey) headers['X-API-Key'] = this.apiKey;
+      const res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || `HTTP ${res.status}`); }
+      return res.json();
+    },
+
+    showToast(type, title, msg, duration = 4000) {
+      this.toast = { show: true, type, title, msg };
+      if (duration) setTimeout(() => { this.toast.show = false; }, duration);
+    },
+
+    startPolling(job_id, agent) {
+      if (this.pollingTimer) clearInterval(this.pollingTimer);
+      this.activeJob = { job_id, agent, status: 'pending', result: null, error: null };
+      this.showToast('loading', 'Job started', 'Polling for results every 4 seconds…', 0);
+      this.pollingTimer = setInterval(async () => {
+        try {
+          const job = await this.api('GET', `/jobs/${job_id}`);
+          this.activeJob = job;
+          if (job.status === 'completed') {
+            clearInterval(this.pollingTimer);
+            this.toast.show = false;
+            this.showToast('success', 'Done!', 'Your results are ready below.');
+            this.saveJob(job);
+            this.loading = false;
+          } else if (job.status === 'failed') {
+            clearInterval(this.pollingTimer);
+            this.toast.show = false;
+            this.showToast('error', 'Job failed', job.error || 'Check Railway logs for details.');
+            this.saveJob(job);
+            this.loading = false;
+          }
+        } catch (e) { /* network blip, keep polling */ }
+      }, 4000);
+    },
+
+    saveJob(job) {
+      this.jobs = [job, ...this.jobs.filter(j => j.job_id !== job.job_id).slice(0, 29)];
+      localStorage.setItem('seo_jobs', JSON.stringify(this.jobs));
+    },
+
+    viewJob(job) { this.activeJob = job; this.navigate('agent' + job.agent.replace('agent','').trim()); },
+
+    saveApiKey() {
+      localStorage.setItem('seo_api_key', this.apiKey);
+      this.savedMsg = '✓ API key saved';
+      setTimeout(() => { this.savedMsg = ''; }, 3000);
+    },
+
+    async submitAgent1() {
+      this.loading = true;
+      try {
+        const body = { channel_url: this.a1.channel_url, max_videos: this.a1.max_videos };
+        if (this.a1.drive_folder_id) body.drive_folder_id = this.a1.drive_folder_id;
+        const data = await this.api('POST', '/agent1/scrape', body);
+        this.startPolling(data.job_id, 'agent1');
+      } catch (e) { this.showToast('error', 'Error', e.message); this.loading = false; }
+    },
+
+    async submitAgent2() {
+      this.loading = true;
+      try {
+        const body = { keyword: this.a2.keyword, language: this.a2.language, num_results: this.a2.num_results };
+        if (this.a2.location) body.location = this.a2.location;
+        const data = await this.api('POST', '/agent2/analyze', body);
+        this.startPolling(data.job_id, 'agent2');
+      } catch (e) { this.showToast('error', 'Error', e.message); this.loading = false; }
+    },
+
+    async submitAgent3() {
+      this.loading = true;
+      try {
+        const urls = this.a3.video_urls.split('\n').map(u => u.trim()).filter(Boolean);
+        if (!urls.length) { this.showToast('error', 'Error', 'Please enter at least one URL'); this.loading = false; return; }
+        const data = await this.api('POST', '/agent3/transcribe', { video_urls: urls, language: this.a3.language, use_whisper_fallback: this.a3.whisper });
+        this.startPolling(data.job_id, 'agent3');
+      } catch (e) { this.showToast('error', 'Error', e.message); this.loading = false; }
+    },
+
+    async submitAgent4() {
+      this.loading = true;
+      try {
+        const body = {
+          keyword: this.a4.keyword,
+          content_topic: this.a4.content_topic,
+          business: { company_name: this.a4.company_name, expert_name: this.a4.expert_name, location: this.a4.location_val, target_audience: this.a4.target_audience, usp: this.a4.usp },
+          cta: this.a4.cta,
+          transcript_texts: this.a4.transcript_text ? [this.a4.transcript_text] : [],
+          transcript_job_ids: this.a4.transcript_job_id ? [this.a4.transcript_job_id] : [],
+        };
+        const data = await this.api('POST', '/agent4/generate', body);
+        this.startPolling(data.job_id, 'agent4');
+      } catch (e) { this.showToast('error', 'Error', e.message); this.loading = false; }
+    },
+
+    copyToClipboard(text) {
+      navigator.clipboard.writeText(text).then(() => this.showToast('success', 'Copied!', 'Text copied to clipboard.'));
+    },
+
+    renderJobResult() {
+      const job = this.activeJob;
+      if (!job) return '';
+      if (job.status === 'pending' || job.status === 'running') {
+        return `<div class="bg-white border border-slate-200 rounded-2xl p-6 text-center">
+          <div class="flex justify-center mb-3"><svg class="animate-spin w-8 h-8 text-brand-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg></div>
+          <p class="font-medium text-slate-700">Processing…</p>
+          <p class="text-sm text-slate-400 mt-1">Status: <strong>${job.status}</strong> — This may take a few minutes.</p>
+          <p class="text-xs text-slate-400 mt-1 font-mono">${job.job_id}</p></div>`;
+      }
+      if (job.status === 'failed') {
+        return `<div class="bg-red-50 border border-red-200 rounded-2xl p-5">
+          <p class="font-semibold text-red-700 mb-1">Job Failed</p>
+          <p class="text-sm text-red-600">${job.error || 'Unknown error'}</p></div>`;
+      }
+      if (job.status === 'completed' && job.result) {
+        const r = job.result;
+        if (job.agent === 'agent1') {
+          return `<div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
+            <p class="font-semibold text-slate-900">✓ Channel scraped: <span class="text-brand-600">${r.channel_title}</span></p>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-slate-50 rounded-xl p-3 text-center"><p class="text-2xl font-bold text-brand-600">${r.video_count}</p><p class="text-xs text-slate-500 mt-1">Videos found</p></div>
+              <div class="bg-slate-50 rounded-xl p-3 text-center"><p class="text-sm font-bold text-slate-700 break-all">${r.channel_id}</p><p class="text-xs text-slate-500 mt-1">Channel ID</p></div>
+            </div>
+            ${r.csv_drive_url ? `<a href="${r.csv_drive_url}" target="_blank" class="flex items-center justify-center gap-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">⬇ Open CSV in Google Drive</a>` : ''}
+            ${r.xlsx_drive_url ? `<a href="${r.xlsx_drive_url}" target="_blank" class="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">⬇ Open Excel in Google Drive</a>` : ''}
+            <p class="text-xs text-slate-400 font-mono">Job ID: ${job.job_id}</p></div>`;
+        }
+        if (job.agent === 'agent2') {
+          const gaps = r.content_gaps || [];
+          return `<div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+            <p class="font-semibold text-slate-900">✓ SERP Analysis complete</p>
+            <div class="grid grid-cols-3 gap-2 text-center">
+              <div class="bg-slate-50 rounded-xl p-3"><p class="text-xl font-bold text-brand-600">${r.pages_analyzed}</p><p class="text-xs text-slate-500">Pages analysed</p></div>
+              <div class="bg-slate-50 rounded-xl p-3"><p class="text-xl font-bold text-red-500">${r.pages_failed}</p><p class="text-xs text-slate-500">Failed</p></div>
+              <div class="bg-slate-50 rounded-xl p-3"><p class="text-xl font-bold text-emerald-600">${gaps.length}</p><p class="text-xs text-slate-500">Content gaps</p></div>
+            </div>
+            ${gaps.length ? `<div class="space-y-2">${gaps.map((g,i) => `<div class="border border-slate-200 rounded-xl p-3"><div class="flex items-start justify-between gap-2 mb-1"><p class="text-sm font-semibold text-slate-800">${i+1}. ${g.topic}</p><span class="text-xs px-2 py-0.5 rounded-full shrink-0 ${g.competition_level==='Low'?'bg-emerald-100 text-emerald-700':g.competition_level==='Medium'?'bg-amber-100 text-amber-700':'bg-red-100 text-red-700'}">${g.competition_level}</span></div><p class="text-xs text-slate-600 italic mb-1">"${g.suggested_title}"</p><p class="text-xs text-slate-500">${g.reasoning}</p></div>`).join('')}</div>` : ''}
+            ${r.report_drive_url ? `<a href="${r.report_drive_url}" target="_blank" class="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">⬇ Open Full Report in Drive</a>` : ''}
+            <p class="text-xs text-slate-400 font-mono">Job ID: ${job.job_id}</p></div>`;
+        }
+        if (job.agent === 'agent3') {
+          const transcripts = r.transcripts || [];
+          return `<div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+            <p class="font-semibold text-slate-900">✓ Transcription complete</p>
+            <div class="grid grid-cols-3 gap-2 text-center">
+              <div class="bg-slate-50 rounded-xl p-3"><p class="text-xl font-bold text-brand-600">${r.total}</p><p class="text-xs text-slate-500">Total</p></div>
+              <div class="bg-slate-50 rounded-xl p-3"><p class="text-xl font-bold text-emerald-600">${r.successful}</p><p class="text-xs text-slate-500">Success</p></div>
+              <div class="bg-slate-50 rounded-xl p-3"><p class="text-xl font-bold text-red-500">${r.failed}</p><p class="text-xs text-slate-500">Failed</p></div>
+            </div>
+            <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+              <p class="text-xs font-semibold text-emerald-700 mb-1">Use this Job ID in Step 4 →</p>
+              <div class="flex items-center gap-2">
+                <code class="text-xs font-mono text-emerald-800 flex-1 truncate">${job.job_id}</code>
+                <button onclick="navigator.clipboard.writeText('${job.job_id}')" class="text-xs bg-emerald-600 text-white px-2 py-1 rounded-lg hover:bg-emerald-700">Copy</button>
+              </div>
+            </div>
+            ${transcripts.map(t => `<div class="border border-slate-200 rounded-xl p-3">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-medium text-slate-700 truncate">${t.title||t.video_id}</span>
+                <span class="text-xs px-2 py-0.5 rounded-full ${t.method==='transcript_api'?'bg-emerald-100 text-emerald-700':t.method==='whisper'?'bg-purple-100 text-purple-700':'bg-red-100 text-red-700'} ml-2 shrink-0">${t.method}</span>
+              </div>
+              ${t.text ? `<p class="text-xs text-slate-500 line-clamp-3">${t.text.slice(0,200)}…</p>` : `<p class="text-xs text-red-500">${t.error||'Unavailable'}</p>`}
+            </div>`).join('')}
+            </div>`;
+        }
+      }
+      return '';
+    },
+
+    renderAgent4Result() {
+      const job = this.activeJob;
+      if (!job) return '';
+      if (job.status === 'pending' || job.status === 'running') return this.renderJobResult();
+      if (job.status === 'failed') return this.renderJobResult();
+      if (job.status === 'completed' && job.result) {
+        const r = job.result;
+        const v = r.validation || {};
+        const passed = v.passed;
+        const text = r.text || '';
+        return `<div class="space-y-4">
+          <div class="bg-white border border-slate-200 rounded-2xl p-5">
+            <div class="flex items-center justify-between mb-4">
+              <p class="font-semibold text-slate-900">Generated SEO Copy</p>
+              <button onclick="app_instance.copyToClipboard(document.getElementById('seo_text_out').innerText)"
+                      class="text-xs bg-brand-600 hover:bg-brand-700 text-white px-3 py-1.5 rounded-lg transition-colors">Copy Text</button>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-center mb-4">
+              <div class="bg-slate-50 rounded-xl p-2"><p class="text-lg font-bold ${passed?'text-emerald-600':'text-red-500'}">${v.word_count||'—'}</p><p class="text-xs text-slate-500">Words</p></div>
+              <div class="bg-slate-50 rounded-xl p-2"><p class="text-lg font-bold text-brand-600">${v.keyword_occurrences||0}</p><p class="text-xs text-slate-500">Keyword hits</p></div>
+              <div class="bg-slate-50 rounded-xl p-2"><p class="text-lg font-bold ${passed?'text-emerald-600':'text-amber-600'}">${((v.keyword_density||0)*100).toFixed(2)}%</p><p class="text-xs text-slate-500">Density</p></div>
+            </div>
+            <div class="flex items-center gap-2 mb-3">
+              <span class="text-xs px-2 py-0.5 rounded-full font-medium ${passed?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}">${passed?'✓ All checks passed':'⚠ Some checks failed'}</span>
+              <span class="text-xs text-slate-400">${r.generation_attempts} attempt(s)</span>
+            </div>
+            ${!passed && v.errors && v.errors.length ? `<div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3"><p class="text-xs font-semibold text-amber-700 mb-1">Validation notes:</p><ul class="text-xs text-amber-600 space-y-0.5">${v.errors.map(e=>`<li>• ${e}</li>`).join('')}</ul></div>` : ''}
+            <div id="seo_text_out" class="prose-result bg-slate-50 rounded-xl p-4 text-sm text-slate-700 max-h-96 overflow-y-auto border border-slate-200">${text.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div>
+          </div>
+          <p class="text-xs text-slate-400 font-mono text-center">Job ID: ${job.job_id}</p>
+        </div>`;
+      }
+      return this.renderJobResult();
+    }
+  }
+}
+
+// Expose instance for clipboard button in rendered HTML
+let app_instance;
+document.addEventListener('alpine:init', () => {});
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => { app_instance = document.querySelector('[x-data]')?._x_dataStack?.[0]; }, 500);
+});
+</script>
+</body>
+</html>
