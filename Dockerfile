@@ -1,19 +1,17 @@
-FROM python:3.11-slim
+# Official Playwright image — Python 3.11 + Chromium pre-installed on Ubuntu Jammy
+FROM mcr.microsoft.com/playwright/python:v1.51.0-jammy
 
-# Only ffmpeg needed at system level — Playwright manages its own Chromium
+# ffmpeg needed for faster-whisper audio processing
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Install Python deps first (cached layer)
+# Install Python deps (cached layer)
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir -r requirements.txt
-
-# Playwright installs Chromium + all its own system deps
-RUN playwright install chromium --with-deps
 
 # Download NLTK tokenizer data
 RUN python -c "import nltk; nltk.download('punkt', quiet=True); nltk.download('punkt_tab', quiet=True)"
