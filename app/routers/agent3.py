@@ -54,8 +54,10 @@ def download_transcripts(job_id: str):
         lines.append(t.get("text") or f"[Unavailable: {t.get('error', 'no transcript')}]")
         lines.append("")
 
-    content = "\n".join(lines)
+    # Prepend UTF-8 BOM so Windows/Notepad opens with correct encoding
+    content = "\ufeff" + "\n".join(lines)
     return PlainTextResponse(
         content=content,
+        media_type="text/plain; charset=utf-8",
         headers={"Content-Disposition": f"attachment; filename=transcripts_{job_id[:8]}.txt"},
     )

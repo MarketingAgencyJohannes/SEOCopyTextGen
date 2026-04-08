@@ -57,9 +57,10 @@ def download_csv(job_id: str):
     for v in videos:
         writer.writerow({k: v.get(k, "") for k in writer.fieldnames})
 
-    output.seek(0)
+    # utf-8-sig adds BOM so Excel on Windows auto-detects UTF-8
+    content = output.getvalue().encode("utf-8-sig")
     return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type="text/csv",
+        iter([content]),
+        media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{channel}_videos.csv"'},
     )

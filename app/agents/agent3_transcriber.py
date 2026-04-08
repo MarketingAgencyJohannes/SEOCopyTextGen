@@ -77,25 +77,17 @@ def _fetch_via_transcript_api(
             except Exception:
                 continue
 
-        # Try any manually created transcript
-        try:
-            manually_created = list(transcript_list._manually_created_transcripts.values())
-            if manually_created:
-                entries = manually_created[0].fetch()
+        # Try any available transcript (manual first, then generated)
+        all_transcripts = list(transcript_list)
+        manual = [t for t in all_transcripts if not t.is_generated]
+        generated = [t for t in all_transcripts if t.is_generated]
+        for t in (manual + generated):
+            try:
+                entries = t.fetch()
                 text = " ".join(e["text"] for e in entries)
-                return _clean_transcript_text(text), manually_created[0].language_code
-        except Exception:
-            pass
-
-        # Try any auto-generated transcript
-        try:
-            generated = list(transcript_list._generated_transcripts.values())
-            if generated:
-                entries = generated[0].fetch()
-                text = " ".join(e["text"] for e in entries)
-                return _clean_transcript_text(text), generated[0].language_code
-        except Exception:
-            pass
+                return _clean_transcript_text(text), t.language_code
+            except Exception:
+                continue
 
         return None
     except (TranscriptsDisabled, NoTranscriptFound):

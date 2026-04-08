@@ -53,9 +53,11 @@ def download_seo_copy(job_id: str):
     if job["status"] != "completed":
         raise HTTPException(status_code=400, detail=f"Job not completed yet (status: {job['status']})")
 
-    text = job.get("result", {}).get("text", "")
+    # Prepend UTF-8 BOM so Windows/Notepad opens with correct encoding
+    text = "\ufeff" + job.get("result", {}).get("text", "")
     slug = job_id[:8]
     return PlainTextResponse(
         content=text,
+        media_type="text/plain; charset=utf-8",
         headers={"Content-Disposition": f"attachment; filename=seo_copy_{slug}.txt"},
     )

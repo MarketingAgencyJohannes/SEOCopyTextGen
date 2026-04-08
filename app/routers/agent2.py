@@ -72,8 +72,10 @@ def download_report(job_id: str):
             f"   Reasoning:         {gap.get('reasoning', '')}",
         ]
 
-    report_text = "\n".join(lines)
+    # Prepend UTF-8 BOM so Windows/Notepad/Word opens with correct encoding
+    report_text = "\ufeff" + "\n".join(lines)
     return PlainTextResponse(
         content=report_text,
+        media_type="text/plain; charset=utf-8",
         headers={"Content-Disposition": f"attachment; filename=gap_report_{keyword}.txt"},
     )
