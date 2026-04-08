@@ -11,7 +11,7 @@
         extend: {
           fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
           colors: {
-            brand: { 50:'#eef2ff', 100:'#e0e7ff', 500:'#6366f1', 600:'#4f46e5', 700:'#4338ca', 800:'#3730a3', 900:'#312e81' }
+            brand: { 50:'#eef2ff', 100:'#e0e7ff', 200:'#c7d2fe', 300:'#a5b4fc', 400:'#818cf8', 500:'#6366f1', 600:'#4f46e5', 700:'#4338ca', 800:'#3730a3', 900:'#312e81' }
           }
         }
       }
@@ -135,7 +135,7 @@
         <div x-show="jobs.length > 0">
           <h2 class="text-base font-semibold text-slate-900 mb-3">Recent Jobs</h2>
           <div class="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
-            <template x-for="job in jobs.slice(0,8)" :key="job.job_id">
+            <template x-for="job in jobs.slice(jobPage * jobsPerPage, (jobPage + 1) * jobsPerPage)" :key="job.job_id">
               <div class="flex items-center justify-between px-4 py-3 hover:bg-slate-50 cursor-pointer" @click="viewJob(job)">
                 <div class="flex items-center gap-3 min-w-0">
                   <span class="text-xs font-mono text-slate-400 shrink-0" x-text="job.agent"></span>
@@ -146,6 +146,17 @@
                       x-text="job.status"></span>
               </div>
             </template>
+            <div x-show="jobs.length > jobsPerPage" class="flex items-center justify-between px-4 py-2 border-t border-slate-100 text-xs text-slate-500">
+              <span x-text="`${jobs.length} job(s) total`"></span>
+              <div class="flex items-center gap-1">
+                <button @click="jobPage = Math.max(0, jobPage - 1)" :disabled="jobPage === 0"
+                        class="px-2 py-1 rounded disabled:opacity-40 hover:bg-slate-100 transition-colors">← Prev</button>
+                <span x-text="`Page ${jobPage + 1} of ${Math.max(1, Math.ceil(jobs.length / jobsPerPage))}`" class="px-1"></span>
+                <button @click="jobPage = Math.min(Math.ceil(jobs.length / jobsPerPage) - 1, jobPage + 1)"
+                        :disabled="(jobPage + 1) * jobsPerPage >= jobs.length"
+                        class="px-2 py-1 rounded disabled:opacity-40 hover:bg-slate-100 transition-colors">Next →</button>
+              </div>
+            </div>
           </div>
         </div>
         <div x-show="jobs.length === 0" class="bg-white rounded-2xl border border-slate-200 p-10 text-center text-slate-400 text-sm">
@@ -179,11 +190,6 @@
             <input x-model.number="a1.max_videos" type="number" min="1" max="5000"
                    class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
             <p class="mt-1 text-xs text-slate-400">Default: 500. Use a smaller number for testing.</p>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1.5">Google Drive Folder ID <span class="text-slate-400">(optional)</span></label>
-            <input x-model="a1.drive_folder_id" type="text" placeholder="Leave blank to use the default folder"
-                   class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
           </div>
           <button type="submit" :disabled="loading" class="w-full flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white font-semibold py-2.5 px-4 rounded-xl transition-colors">
             <svg x-show="loading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
@@ -427,31 +433,6 @@
           <div x-show="savedMsg" class="text-center text-sm text-emerald-600 font-medium" x-text="savedMsg"></div>
         </div>
 
-        <!-- Drive test -->
-        <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 mt-4">
-          <h3 class="text-sm font-semibold text-slate-700">Google Drive Connection</h3>
-          <button @click="testDrive()" :disabled="driveTestLoading" class="w-full flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-800 disabled:opacity-60 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors">
-            <svg x-show="driveTestLoading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-            <span>Test Drive Connection</span>
-          </button>
-          <div x-show="driveTestResult" class="rounded-xl p-3 text-sm"
-               :class="driveTestResult?.status === 'ok' ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' : 'bg-red-50 border border-red-200 text-red-800'">
-            <template x-if="driveTestResult?.status === 'ok'">
-              <div>
-                <p class="font-semibold mb-1">✓ Drive connected successfully</p>
-                <p class="text-xs">Folder: <strong x-text="driveTestResult.folder_name"></strong></p>
-                <p class="text-xs">Account: <span x-text="driveTestResult.service_account"></span></p>
-              </div>
-            </template>
-            <template x-if="driveTestResult?.status === 'error'">
-              <div>
-                <p class="font-semibold mb-1">✗ Drive connection failed</p>
-                <p class="text-xs font-mono mt-1" x-text="driveTestResult.detail"></p>
-                <p class="text-xs mt-2 text-red-600">Most likely fix: enable <strong>Google Drive API</strong> in your GCP project → APIs &amp; Services → Library → search "Google Drive API" → Enable.</p>
-              </div>
-            </template>
-          </div>
-        </div>
         <div class="mt-4 bg-slate-100 rounded-2xl p-4 text-xs text-slate-500 space-y-1">
           <p><strong>How to find your API key:</strong></p>
           <p>Go to Railway → your project → Variables → copy the value of <code>API_SECRET_KEY</code>.</p>
@@ -490,8 +471,8 @@ function app() {
     activeJob: null,
     pollingTimer: null,
     toast: { show: false, type: 'loading', title: '', msg: '' },
-    driveTestResult: null,
-    driveTestLoading: false,
+    jobPage: 0,
+    jobsPerPage: 5,
 
     agents: [
       { id: 1, step: '1', page: 'agent1', label: 'Channel Scraper', desc: 'Extract all video data from a YouTube channel into a spreadsheet.', color: 'bg-red-100', icon: '<svg class="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>' },
@@ -501,7 +482,7 @@ function app() {
     ],
 
     // Form state
-    a1: { channel_url: '', max_videos: 500, drive_folder_id: '' },
+    a1: { channel_url: '', max_videos: 500 },
     a2: { keyword: '', location: '', language: 'de', num_results: 30 },
     a3: { video_urls: '', language: 'de', whisper: true },
     a4: { keyword: '', content_topic: '', company_name: '', expert_name: '', location_val: '', target_audience: '', usp: '', cta: '', transcript_job_id: '', transcript_text: '' },
@@ -559,24 +540,10 @@ function app() {
       setTimeout(() => { this.savedMsg = ''; }, 3000);
     },
 
-    async testDrive() {
-      this.driveTestLoading = true;
-      this.driveTestResult = null;
-      try {
-        const res = await fetch('/drive/test', { headers: this.apiKey ? { 'X-API-Key': this.apiKey } : {} });
-        this.driveTestResult = await res.json();
-      } catch (e) {
-        this.driveTestResult = { status: 'error', detail: e.message };
-      } finally {
-        this.driveTestLoading = false;
-      }
-    },
-
     async submitAgent1() {
       this.loading = true;
       try {
         const body = { channel_url: this.a1.channel_url, max_videos: this.a1.max_videos };
-        if (this.a1.drive_folder_id) body.drive_folder_id = this.a1.drive_folder_id;
         const data = await this.api('POST', '/agent1/scrape', body);
         this.startPolling(data.job_id, 'agent1');
       } catch (e) { this.showToast('error', 'Error', e.message); this.loading = false; }
@@ -647,9 +614,6 @@ function app() {
               <div class="bg-slate-50 rounded-xl p-3 text-center"><p class="text-sm font-bold text-slate-700 break-all">${r.channel_id}</p><p class="text-xs text-slate-500 mt-1">Channel ID</p></div>
             </div>
             <a href="/agent1/download/${job.job_id}" download class="flex items-center justify-center gap-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">⬇ Download CSV</a>
-            ${r.csv_drive_url ? `<a href="${r.csv_drive_url}" target="_blank" class="flex items-center justify-center gap-2 w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold py-2.5 rounded-xl transition-colors">↗ Open CSV in Google Drive</a>` : ''}
-            ${r.xlsx_drive_url ? `<a href="${r.xlsx_drive_url}" target="_blank" class="flex items-center justify-center gap-2 w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold py-2.5 rounded-xl transition-colors">↗ Open Excel in Google Drive</a>` : ''}
-            ${r.drive_error ? `<div class="bg-red-50 border border-red-200 rounded-xl p-3"><p class="text-xs font-semibold text-red-700 mb-1">⚠ Google Drive upload failed</p><p class="text-xs font-mono text-red-600 break-all">${r.drive_error.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p><p class="text-xs text-red-500 mt-1">Fix: re-share the Drive folder with <strong>Editor</strong> (not Viewer) access for the service account.</p></div>` : ''}
             <p class="text-xs text-slate-400 font-mono">Job ID: ${job.job_id}</p></div>`;
         }
         if (job.agent === 'agent2') {

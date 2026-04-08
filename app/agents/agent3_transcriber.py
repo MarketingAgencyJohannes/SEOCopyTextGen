@@ -3,7 +3,7 @@ Agent 3 — YouTube Video Transcriber
 
 Priority order per video:
   1. youtube-transcript-api (free, instant, no API key)
-  2. yt-dlp audio → Whisper transcription (fallback, CPU-heavy)
+  2. yt-dlp audio → faster-whisper transcription (fallback, CPU-heavy)
   3. Flag as unavailable
 """
 
@@ -18,6 +18,9 @@ from app.config import settings
 from app.models.agent3 import TranscribeRequest, TranscribeResult, TranscriptEntry
 
 logger = logging.getLogger(__name__)
+
+TRANSCRIPT_API_TIMEOUT = 15   # seconds per video for transcript API
+YTDLP_SOCKET_TIMEOUT = 30     # seconds for yt-dlp network operations
 
 # Whisper model loaded once at module level to avoid per-request cold start
 _whisper_model = None
@@ -63,7 +66,8 @@ def _fetch_via_transcript_api(
     """Returns (text, language) or None on failure."""
     try:
         transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        # Try preferred language first
+
+        # Try preferred language first, then fallback
         for lang in [language, language_fallback]:
             try:
                 transcript = transcript_list.find_transcript([lang])
@@ -72,13 +76,28 @@ def _fetch_via_transcript_api(
                 return _clean_transcript_text(text), lang
             except Exception:
                 continue
-        # Try any available transcript (auto-generated)
-        transcript = transcript_list.find_generated_transcript(
-            transcript_list._generated_transcripts.keys()
-        )
-        entries = transcript.fetch()
-        text = " ".join(e["text"] for e in entries)
-        return _clean_transcript_text(text), transcript.language_code
+
+        # Try any manually created transcript
+        try:
+            manually_created = list(transcript_list._manually_created_transcripts.values())
+            if manually_created:
+                entries = manually_created[0].fetch()
+                text = " ".join(e["text"] for e in entries)
+                return _clean_transcript_text(text), manually_created[0].language_code
+        except Exception:
+            pass
+
+        # Try any auto-generated transcript
+        try:
+            generated = list(transcript_list._generated_transcripts.values())
+            if generated:
+                entries = generated[0].fetch()
+                text = " ".join(e["text"] for e in entries)
+                return _clean_transcript_text(text), generated[0].language_code
+        except Exception:
+            pass
+
+        return None
     except (TranscriptsDisabled, NoTranscriptFound):
         return None
     except Exception as exc:
@@ -86,8 +105,19 @@ def _fetch_via_transcript_api(
         return None
 
 
+def _fetch_title_from_transcript_api(video_id: str) -> str | None:
+    """Fast title fetch using transcript API metadata (no yt-dlp needed)."""
+    try:
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        # The video title isn't directly in the transcript API, return None
+        # and use video_id as fallback — avoids blocking yt-dlp title call
+        return None
+    except Exception:
+        return None
+
+
 def _fetch_via_whisper(video_id: str, video_url: str) -> tuple[str, str] | None:
-    """Download audio with yt-dlp, transcribe with Whisper. Returns (text, language)."""
+    """Download audio with yt-dlp, transcribe with faster-whisper. Returns (text, language)."""
     model = _get_whisper_model()
     if model is None:
         return None
@@ -106,6 +136,8 @@ def _fetch_via_whisper(video_id: str, video_url: str) -> tuple[str, str] | None:
             "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3"}],
             "quiet": True,
             "no_warnings": True,
+            "socket_timeout": YTDLP_SOCKET_TIMEOUT,
+            "retries": 2,
         }
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -114,7 +146,7 @@ def _fetch_via_whisper(video_id: str, video_url: str) -> tuple[str, str] | None:
             logger.warning("yt-dlp download failed for %s: %s", video_id, exc)
             return None
 
-        # yt-dlp appends .mp3 to the outtmpl
+        # yt-dlp may append .mp3 to the outtmpl
         actual_path = audio_path if os.path.exists(audio_path) else audio_path + ".mp3"
         if not os.path.exists(actual_path):
             logger.warning("Audio file not found after yt-dlp for %s", video_id)
@@ -130,19 +162,6 @@ def _fetch_via_whisper(video_id: str, video_url: str) -> tuple[str, str] | None:
             return None
 
 
-def _get_video_title(video_id: str) -> str | None:
-    """Best-effort title fetch via yt-dlp (no download)."""
-    try:
-        import yt_dlp  # noqa: PLC0415
-        with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True}) as ydl:
-            info = ydl.extract_info(
-                f"https://www.youtube.com/watch?v={video_id}", download=False
-            )
-            return info.get("title")
-    except Exception:
-        return None
-
-
 def run_transcribe(req: TranscribeRequest) -> TranscribeResult:
     entries: list[TranscriptEntry] = []
 
@@ -155,14 +174,13 @@ def run_transcribe(req: TranscribeRequest) -> TranscribeResult:
             ))
             continue
 
-        title = _get_video_title(video_id)
-
-        # Attempt 1: youtube-transcript-api
+        # Attempt 1: youtube-transcript-api (fast, free, no blocking title fetch)
         result = _fetch_via_transcript_api(video_id, req.language, req.language_fallback)
         if result:
             text, lang = result
             entries.append(TranscriptEntry(
-                url=url, video_id=video_id, title=title,
+                url=url, video_id=video_id,
+                title=f"Video {video_id}",   # title shown in UI; no blocking API call needed
                 language=lang, method="transcript_api", text=text,
             ))
             continue
@@ -173,14 +191,16 @@ def run_transcribe(req: TranscribeRequest) -> TranscribeResult:
             if result:
                 text, lang = result
                 entries.append(TranscriptEntry(
-                    url=url, video_id=video_id, title=title,
+                    url=url, video_id=video_id,
+                    title=f"Video {video_id}",
                     language=lang, method="whisper", text=text,
                 ))
                 continue
 
         # Failed
         entries.append(TranscriptEntry(
-            url=url, video_id=video_id, title=title,
+            url=url, video_id=video_id,
+            title=f"Video {video_id}",
             method="unavailable",
             error="No transcript available and Whisper fallback did not succeed",
         ))

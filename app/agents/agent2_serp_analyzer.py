@@ -26,7 +26,6 @@ from app.models.agent2 import (
     SerpAnalysisResult,
 )
 from app.services.claude_client import complete
-from app.services.google_drive import upload_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -177,29 +176,47 @@ def _identify_gaps(keyword: str, summaries: list[PageSummary]) -> dict:
     )
 
     system = (
-        "You are an SEO content strategist. Analyse the provided SERP data "
-        "and return a JSON object with these keys:\n"
-        '  "saturated_topics": list of str (topics covered by 3+ pages)\n'
-        '  "underserved_topics": list of str (topics covered by 1-2 pages)\n'
-        '  "content_gaps": list of objects with keys:\n'
-        '    "topic": str\n'
-        '    "suggested_title": str (H1 for a new page)\n'
-        '    "competition_level": "Low" | "Medium" | "High"\n'
-        '    "content_type": str\n'
-        '    "reasoning": str (1-2 sentences)\n'
-        "Return ONLY valid JSON."
+        "You are an SEO content strategist. Analyse the provided SERP data and identify content gaps.\n\n"
+        "You MUST return a raw JSON object — no markdown, no code blocks, no backticks, no explanation text.\n"
+        "Start your response with { and end with }.\n\n"
+        "Required JSON structure:\n"
+        '{\n'
+        '  "saturated_topics": ["topic covered by 3+ pages", ...],\n'
+        '  "underserved_topics": ["topic covered by only 1-2 pages", ...],\n'
+        '  "content_gaps": [\n'
+        '    {\n'
+        '      "topic": "specific angle not yet covered",\n'
+        '      "suggested_title": "H1 title for a new page targeting this gap",\n'
+        '      "competition_level": "Low",\n'
+        '      "content_type": "informational",\n'
+        '      "reasoning": "Why this gap exists in 1-2 sentences."\n'
+        '    }\n'
+        '  ]\n'
+        '}\n\n'
+        'competition_level must be exactly one of: "Low", "Medium", "High".\n'
+        "Aim for at least 3-5 content_gaps if gaps exist. Be specific and actionable."
     )
     user = (
-        f"Keyword: {keyword}\n\n"
-        f"Top ranking pages:\n{page_titles}\n\n"
-        f"H2 headings found across all pages:\n{headings_text}\n\n"
-        "Identify what topics/angles are missing or underserved in these rankings."
+        f"Target keyword: {keyword}\n\n"
+        f"Top {len(summaries)} ranking pages:\n{page_titles}\n\n"
+        f"H2 headings found across all pages:\n{headings_text or '(no headings extracted)'}\n\n"
+        "Task: Identify topics, angles, questions, and content types that are NOT covered "
+        "or barely covered by these pages. Think about what a user searching for this keyword "
+        "would want to know that these pages don't address. Return the JSON object now."
     )
-    raw = complete(system, user, max_tokens=1500)
+    raw = complete(system, user, max_tokens=2000)
+
+    # Strip markdown code fences if Claude wraps in ```json ... ```
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+        cleaned = cleaned.strip()
+
     try:
-        return json.loads(raw)
+        return json.loads(cleaned)
     except json.JSONDecodeError:
-        logger.error("Failed to parse Claude gap analysis JSON: %s", raw[:200])
+        logger.error("Failed to parse Claude gap analysis JSON. Full response:\n%s", raw)
         return {"saturated_topics": [], "underserved_topics": [], "content_gaps": []}
 
 

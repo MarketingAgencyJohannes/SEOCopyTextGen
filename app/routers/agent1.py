@@ -61,5 +61,5 @@ def download_csv(job_id: str):
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={channel}_videos.csv"},
+        headers={"Content-Disposition": f'attachment; filename="{channel}_videos.csv"'},
     )
