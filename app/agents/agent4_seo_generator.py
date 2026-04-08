@@ -126,6 +126,12 @@ def _build_generation_prompt(req: SEOCopyRequest, profile: TonalityProfile) -> t
 
     system = f"""You are an expert SEO copywriter. Generate a fully structured, SEO-optimised text.
 
+## CRITICAL — TRANSCRIPT USAGE
+The transcript provided is used ONLY to calibrate your writing style and tone.
+Do NOT copy, paraphrase, reference, or borrow any content, examples, facts, phrases,
+or anecdotes from the transcript. Treat transcript content as completely invisible —
+only its language rhythm, register, and connectors matter.
+
 ## STYLE RULES (apply throughout)
 - Sentence length distribution: ~{int(profile.short_sentence_share*100)}% short (≤8 words), \
 ~{int(profile.medium_sentence_share*100)}% medium (9-18 words), \
@@ -194,9 +200,15 @@ Stage 4 — THE SOLUTION: concrete process, what happens in a session, expected 
 Stage 5 — CALL TO ACTION: {req.cta}
 
 STRUCTURE REQUIREMENTS:
-- Total body text: 816-900 words (DO NOT count H1/H2 headlines in the word count)
-- Keyword "{req.keyword}" must appear: in sentence 1, in paragraph 2 with location reference, and 3-5 more times organically
-- Keyword density: 0.8%-1.2% of total word count
+- Body text word count: aim for 880 words. Exclude H1:/H2: headline lines from your count.
+  When in doubt write more — 816 is the absolute floor, 900 is the ceiling.
+- Keyword "{req.keyword}" must appear AT LEAST 7 times total:
+    • Once in the very first sentence
+    • Once in the second intro paragraph with a location reference
+    • Once in the first H2 headline
+    • 4+ more times distributed naturally across H2 body paragraphs and the CTA
+  (7 uses in 850 words = 0.82% density — the minimum required)
+- Keyword density: 0.8%-1.2% of total word count — hitting 7+ uses above guarantees this
 - Exactly 1 H1 (contains keyword)
 - 5-6 H2s total; first H2 contains keyword; Expert H2 = "{b.company_name}: Experte für {req.keyword}"
 - Exactly 4 bullet points after the first H2 (8-15 words each)
@@ -209,7 +221,27 @@ STRUCTURE REQUIREMENTS:
 
 def _generate_text(req: SEOCopyRequest, profile: TonalityProfile) -> str:
     system, user = _build_generation_prompt(req, profile)
-    return complete(system, user, max_tokens=2500)
+    return complete(system, user, max_tokens=2800)
+
+
+def _generate_text_with_feedback(
+    req: SEOCopyRequest,
+    profile: TonalityProfile,
+    errors: list[str],
+    previous_text: str,
+) -> str:
+    """Regenerate with validation errors fed back so Claude can fix specific issues."""
+    system, user = _build_generation_prompt(req, profile)
+    errors_str = "\n".join(f"  • {e}" for e in errors)
+    feedback_user = (
+        f"{user}\n\n"
+        f"---\n"
+        f"CORRECTION REQUIRED — your previous attempt failed these checks:\n"
+        f"{errors_str}\n\n"
+        f"REWRITE the text below fixing ALL listed issues. Keep everything that is correct.\n\n"
+        f"Previous text:\n{previous_text}"
+    )
+    return complete(system, feedback_user, max_tokens=2800)
 
 
 # ---------------------------------------------------------------------------
@@ -364,7 +396,11 @@ def run_seo_generation(req: SEOCopyRequest, transcripts: list[str]) -> SEOCopyRe
 
     for attempt in range(3):
         gen_attempts = attempt + 1
-        text = _generate_text(req, profile)
+        if attempt == 0 or validation is None:
+            text = _generate_text(req, profile)
+        else:
+            # Feed validation errors back so Claude knows exactly what to fix
+            text = _generate_text_with_feedback(req, profile, validation.errors, text)
         validation = _validate_structure(text, req)
         if validation.passed:
             break
