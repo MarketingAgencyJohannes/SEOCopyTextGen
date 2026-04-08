@@ -60,10 +60,17 @@ def _clean_transcript_text(raw: str) -> str:
     return text.strip()
 
 
+def _snippet_text(entry) -> str:
+    """Handle both dict (old API) and object (new API) transcript entries."""
+    if isinstance(entry, dict):
+        return entry.get("text", "")
+    return getattr(entry, "text", "") or ""
+
+
 def _fetch_via_transcript_api(
     video_id: str, language: str, language_fallback: str
-) -> tuple[str, str] | None:
-    """Returns (text, language) or None on failure."""
+) -> tuple[tuple[str, str], None] | tuple[None, str]:
+    """Returns ((text, language), None) on success or (None, error_reason) on failure."""
     try:
         transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
 
@@ -72,29 +79,31 @@ def _fetch_via_transcript_api(
             try:
                 transcript = transcript_list.find_transcript([lang])
                 entries = transcript.fetch()
-                text = " ".join(e["text"] for e in entries)
-                return _clean_transcript_text(text), lang
+                text = " ".join(_snippet_text(e) for e in entries)
+                return (_clean_transcript_text(text), lang), None
             except Exception:
                 continue
 
         # Try any available transcript (manual first, then generated)
         all_transcripts = list(transcript_list)
-        manual = [t for t in all_transcripts if not t.is_generated]
-        generated = [t for t in all_transcripts if t.is_generated]
+        manual = [t for t in all_transcripts if not getattr(t, "is_generated", False)]
+        generated = [t for t in all_transcripts if getattr(t, "is_generated", True)]
         for t in (manual + generated):
             try:
                 entries = t.fetch()
-                text = " ".join(e["text"] for e in entries)
-                return _clean_transcript_text(text), t.language_code
+                text = " ".join(_snippet_text(e) for e in entries)
+                return (_clean_transcript_text(text), t.language_code), None
             except Exception:
                 continue
 
-        return None
-    except (TranscriptsDisabled, NoTranscriptFound):
-        return None
+        return None, "No usable transcript found (all languages failed to fetch)"
+    except TranscriptsDisabled:
+        return None, "Transcripts are disabled for this video"
+    except NoTranscriptFound:
+        return None, "No captions available for this video"
     except Exception as exc:
         logger.warning("transcript_api failed for %s: %s", video_id, exc)
-        return None
+        return None, f"Transcript API error: {type(exc).__name__}: {exc}"
 
 
 def _fetch_title_from_transcript_api(video_id: str) -> str | None:
@@ -167,21 +176,21 @@ def run_transcribe(req: TranscribeRequest) -> TranscribeResult:
             continue
 
         # Attempt 1: youtube-transcript-api (fast, free, no blocking title fetch)
-        result = _fetch_via_transcript_api(video_id, req.language, req.language_fallback)
+        result, api_error = _fetch_via_transcript_api(video_id, req.language, req.language_fallback)
         if result:
             text, lang = result
             entries.append(TranscriptEntry(
                 url=url, video_id=video_id,
-                title=f"Video {video_id}",   # title shown in UI; no blocking API call needed
+                title=f"Video {video_id}",
                 language=lang, method="transcript_api", text=text,
             ))
             continue
 
         # Attempt 2: Whisper fallback
         if req.use_whisper_fallback and settings.whisper_enabled:
-            result = _fetch_via_whisper(video_id, url)
-            if result:
-                text, lang = result
+            whisper_result = _fetch_via_whisper(video_id, url)
+            if whisper_result:
+                text, lang = whisper_result
                 entries.append(TranscriptEntry(
                     url=url, video_id=video_id,
                     title=f"Video {video_id}",
@@ -189,12 +198,12 @@ def run_transcribe(req: TranscribeRequest) -> TranscribeResult:
                 ))
                 continue
 
-        # Failed
+        # Failed — surface the actual reason
         entries.append(TranscriptEntry(
             url=url, video_id=video_id,
             title=f"Video {video_id}",
             method="unavailable",
-            error="No transcript available and Whisper fallback did not succeed",
+            error=api_error or "No transcript available",
         ))
 
     successful = sum(1 for e in entries if e.text)

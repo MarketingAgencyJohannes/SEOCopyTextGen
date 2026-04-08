@@ -1,6 +1,6 @@
 import io
-import csv
 
+import pandas as pd
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import StreamingResponse
 
@@ -39,8 +39,8 @@ def scrape_channel(req: ChannelScrapeRequest, background_tasks: BackgroundTasks)
 
 
 @router.get("/download/{job_id}")
-def download_csv(job_id: str):
-    """Download the scraped video list as a CSV file directly."""
+def download_xlsx(job_id: str):
+    """Download the scraped video list as an Excel (.xlsx) file."""
     job = get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -49,18 +49,18 @@ def download_csv(job_id: str):
 
     result = job.get("result", {})
     videos = result.get("videos", [])
-    channel = result.get("channel_title", "channel").replace(" ", "_")
+    channel = result.get("channel_title", "channel").replace(" ", "_")[:40]
 
-    output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=["position", "title", "url", "video_id", "description", "published_at", "view_count", "duration"])
-    writer.writeheader()
-    for v in videos:
-        writer.writerow({k: v.get(k, "") for k in writer.fieldnames})
+    cols = ["position", "title", "url", "video_id", "description", "published_at", "view_count", "duration"]
+    df = pd.DataFrame(videos)
+    df = df[[c for c in cols if c in df.columns]]
 
-    # utf-8-sig adds BOM so Excel on Windows auto-detects UTF-8
-    content = output.getvalue().encode("utf-8-sig")
+    buf = io.BytesIO()
+    df.to_excel(buf, index=False, engine="openpyxl")
+    buf.seek(0)
+
     return StreamingResponse(
-        iter([content]),
-        media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f'attachment; filename="{channel}_videos.csv"'},
+        iter([buf.getvalue()]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{channel}_videos.xlsx"'},
     )
