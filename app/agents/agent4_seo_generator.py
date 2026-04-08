@@ -170,10 +170,11 @@ H2: [Keyword H2 — Stage 1, naturally worded question or description, contains 
 [paragraph 2]
 
 H2: [Free H2 — Stage 2]
-[paragraphs]
+[paragraph 1]
+[paragraph 2 with 1-2 <strong>Label.</strong> Explanation. bold elements]
 
 H2: [Free H2 — Stage 3 / USP]
-[paragraphs with <strong>Label.</strong> Explanation. bold elements]
+[paragraphs with 2-3 <strong>Label.</strong> Explanation. bold elements]
 
 H2: {b.company_name}: Experte für [keyword]
 [paragraphs with <strong>Label.</strong> Explanation. bold elements — at least 3]
@@ -200,8 +201,8 @@ Stage 4 — THE SOLUTION: concrete process, what happens in a session, expected 
 Stage 5 — CALL TO ACTION: {req.cta}
 
 STRUCTURE REQUIREMENTS:
-- Body text word count: aim for 880 words. Exclude H1:/H2: headline lines from your count.
-  When in doubt write more — 816 is the absolute floor, 900 is the ceiling.
+- Body text word count: aim for exactly 845 words. Exclude H1:/H2: headline lines from your
+  count. 816 is the floor, 900 is the hard ceiling — do not go over 900.
 - Keyword "{req.keyword}" must appear AT LEAST 7 times total:
     • Once in the very first sentence
     • Once in the second intro paragraph with a location reference
@@ -213,7 +214,8 @@ STRUCTURE REQUIREMENTS:
 - 5-6 H2s total; first H2 contains keyword; Expert H2 = "{b.company_name}: Experte für {req.keyword}"
 - Exactly 4 bullet points after the first H2 (8-15 words each)
 - 10-12 bold elements total using format: <strong>Short label.</strong> Explanation sentence.
-  - Max 3 per H2 section; none in intro or CTA
+  - Distribute across H2 sections: Stage 2 H2 gets 1-2 bold, Stages 3-5 H2s each get 2-3 bold
+  - None in intro paragraphs, first H2 (has bullets), or CTA
 - All 5 narrative stages covered in order; no single H2 covers two stages"""
 
     return system, user
