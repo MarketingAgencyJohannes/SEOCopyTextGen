@@ -2,9 +2,10 @@
 Agent 3 — YouTube Video Transcriber
 
 Priority order per video:
-  1. youtube-transcript-api (free, instant, no API key)
-  2. yt-dlp audio → faster-whisper transcription (fallback, CPU-heavy)
-  3. Flag as unavailable
+  1. youtube-transcript-api (free, instant)
+  2. Invidious public API (fallback when YouTube rate-limits the server IP)
+  3. yt-dlp audio → faster-whisper transcription (CPU-heavy, last resort)
+  4. Flag as unavailable
 """
 
 import re
@@ -12,6 +13,7 @@ import os
 import tempfile
 import logging
 
+import httpx
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 
 from app.config import settings
@@ -21,6 +23,14 @@ logger = logging.getLogger(__name__)
 
 TRANSCRIPT_API_TIMEOUT = 15   # seconds per video for transcript API
 YTDLP_SOCKET_TIMEOUT = 30     # seconds for yt-dlp network operations
+
+# Invidious public instances — tried in order, first success wins
+INVIDIOUS_INSTANCES = [
+    "https://inv.nadeko.net",
+    "https://invidious.slipfox.xyz",
+    "https://invidious.nerdvpn.de",
+    "https://invidious.io.lol",
+]
 
 # Whisper model loaded once at module level to avoid per-request cold start
 _whisper_model = None
@@ -117,6 +127,67 @@ def _fetch_title_from_transcript_api(video_id: str) -> str | None:
         return None
 
 
+def _parse_vtt(vtt_content: str) -> str:
+    """Extract plain text from WebVTT, stripping timestamps and duplicate lines."""
+    seen: set[str] = set()
+    parts: list[str] = []
+    for line in vtt_content.split("\n"):
+        line = line.strip()
+        if not line or "-->" in line or line.startswith("WEBVTT") or line.startswith("NOTE"):
+            continue
+        clean = re.sub(r"<[^>]+>", "", line).strip()
+        if clean and clean not in seen:
+            seen.add(clean)
+            parts.append(clean)
+    return " ".join(parts)
+
+
+def _fetch_via_invidious(
+    video_id: str, language: str
+) -> tuple[tuple[str, str], None] | tuple[None, str]:
+    """Fetch captions from a public Invidious instance (bypasses Railway IP blocks).
+    Returns ((text, lang_code), None) on success or (None, error_reason) on failure.
+    """
+    for base in INVIDIOUS_INSTANCES:
+        try:
+            r = httpx.get(f"{base}/api/v1/captions/{video_id}", timeout=10)
+            if r.status_code != 200:
+                logger.debug("Invidious %s returned %s for %s", base, r.status_code, video_id)
+                continue
+
+            captions = r.json().get("captions", [])
+            if not captions:
+                return None, "No captions listed on Invidious"
+
+            # Prefer requested language, otherwise take the first available
+            target = next(
+                (c for c in captions if c.get("languageCode", "").startswith(language)),
+                captions[0],
+            )
+            cap_url = target.get("url", "")
+            if not cap_url:
+                continue
+
+            full_url = f"{base}{cap_url}" if cap_url.startswith("/") else cap_url
+            r2 = httpx.get(full_url, timeout=15)
+            if r2.status_code != 200:
+                continue
+
+            text = _clean_transcript_text(_parse_vtt(r2.text))
+            if not text:
+                continue
+
+            lang_code = target.get("languageCode", language)
+            logger.info("Invidious transcript OK for %s via %s (%s)", video_id, base, lang_code)
+            return (text, lang_code), None
+
+        except Exception as exc:
+            logger.warning("Invidious %s failed for %s: %s", base, video_id, exc)
+            continue
+
+    return None, "All Invidious instances failed"
+
+
 def _fetch_via_whisper(video_id: str, video_url: str) -> tuple[str, str] | None:
     """Download audio with yt-dlp, transcribe with faster-whisper. Returns (text, language)."""
     model = _get_whisper_model()
@@ -175,7 +246,7 @@ def run_transcribe(req: TranscribeRequest) -> TranscribeResult:
             ))
             continue
 
-        # Attempt 1: youtube-transcript-api (fast, free, no blocking title fetch)
+        # Attempt 1: youtube-transcript-api (fast, no extra requests)
         result, api_error = _fetch_via_transcript_api(video_id, req.language, req.language_fallback)
         if result:
             text, lang = result
@@ -186,7 +257,22 @@ def run_transcribe(req: TranscribeRequest) -> TranscribeResult:
             ))
             continue
 
-        # Attempt 2: Whisper fallback
+        # Attempt 2: Invidious (bypasses Railway/GCP IP blocks from YouTube rate limiting)
+        is_rate_limited = api_error and ("429" in api_error or "YouTubeRequestFailed" in api_error)
+        if is_rate_limited or api_error:
+            inv_result, inv_error = _fetch_via_invidious(video_id, req.language)
+            if inv_result:
+                text, lang = inv_result
+                entries.append(TranscriptEntry(
+                    url=url, video_id=video_id,
+                    title=f"Video {video_id}",
+                    language=lang, method="invidious", text=text,
+                ))
+                continue
+            # Surface the Invidious error too
+            api_error = f"{api_error} | Invidious: {inv_error}"
+
+        # Attempt 3: Whisper (CPU-heavy audio transcription, last resort)
         if req.use_whisper_fallback and settings.whisper_enabled:
             whisper_result = _fetch_via_whisper(video_id, url)
             if whisper_result:
@@ -198,7 +284,7 @@ def run_transcribe(req: TranscribeRequest) -> TranscribeResult:
                 ))
                 continue
 
-        # Failed — surface the actual reason
+        # All attempts failed
         entries.append(TranscriptEntry(
             url=url, video_id=video_id,
             title=f"Video {video_id}",
