@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     # Agent 3 — Transcriber
     whisper_enabled: bool = True
     whisper_model_size: str = "small"
+    # Optional: Webshare.io residential proxy to bypass YouTube IP blocks
+    # Free tier at webshare.io (10 proxies, 1 GB/month) is sufficient
+    webshare_proxy_username: str = ""
+    webshare_proxy_password: str = ""
 
     # Agent 4 — SEO Copy Generator
     seo_word_target: int = 850

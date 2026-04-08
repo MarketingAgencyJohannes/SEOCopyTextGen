@@ -25,11 +25,14 @@ TRANSCRIPT_API_TIMEOUT = 15   # seconds per video for transcript API
 YTDLP_SOCKET_TIMEOUT = 30     # seconds for yt-dlp network operations
 
 # Invidious public instances — tried in order, first success wins
+# Source: https://instances.invidious.io
 INVIDIOUS_INSTANCES = [
+    "https://yewtu.be",
+    "https://invidious.fdn.fr",
+    "https://yt.artemislena.eu",
+    "https://invidious.privacydev.net",
     "https://inv.nadeko.net",
-    "https://invidious.slipfox.xyz",
-    "https://invidious.nerdvpn.de",
-    "https://invidious.io.lol",
+    "https://invidious.lunar.icu",
 ]
 
 # Whisper model loaded once at module level to avoid per-request cold start
@@ -48,6 +51,23 @@ def _get_whisper_model():
         )
         logger.info("faster-whisper model loaded.")
     return _whisper_model
+
+
+def _get_ytt_api() -> YouTubeTranscriptApi:
+    """Return a YouTubeTranscriptApi instance, using Webshare proxy if configured.
+
+    Webshare residential proxies bypass YouTube's cloud-IP ban.
+    Sign up free at webshare.io and set WEBSHARE_PROXY_USERNAME / WEBSHARE_PROXY_PASSWORD
+    in Railway environment variables.
+    """
+    if settings.webshare_proxy_username and settings.webshare_proxy_password:
+        from youtube_transcript_api.proxies import WebshareProxyConfig
+        logger.debug("Using Webshare proxy for YouTube transcript API")
+        return YouTubeTranscriptApi(proxy_config=WebshareProxyConfig(
+            proxy_username=settings.webshare_proxy_username,
+            proxy_password=settings.webshare_proxy_password,
+        ))
+    return YouTubeTranscriptApi()
 
 
 def _extract_video_id(url: str) -> str | None:
@@ -82,7 +102,7 @@ def _fetch_via_transcript_api(
 ) -> tuple[tuple[str, str], None] | tuple[None, str]:
     """Returns ((text, language), None) on success or (None, error_reason) on failure."""
     try:
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        transcript_list = _get_ytt_api().list_transcripts(video_id)
 
         # Try preferred language first, then fallback
         for lang in [language, language_fallback]:
@@ -116,17 +136,6 @@ def _fetch_via_transcript_api(
         return None, f"Transcript API error: {type(exc).__name__}: {exc}"
 
 
-def _fetch_title_from_transcript_api(video_id: str) -> str | None:
-    """Fast title fetch using transcript API metadata (no yt-dlp needed)."""
-    try:
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        # The video title isn't directly in the transcript API, return None
-        # and use video_id as fallback — avoids blocking yt-dlp title call
-        return None
-    except Exception:
-        return None
-
-
 def _parse_vtt(vtt_content: str) -> str:
     """Extract plain text from WebVTT, stripping timestamps and duplicate lines."""
     seen: set[str] = set()
@@ -145,47 +154,61 @@ def _parse_vtt(vtt_content: str) -> str:
 def _fetch_via_invidious(
     video_id: str, language: str
 ) -> tuple[tuple[str, str], None] | tuple[None, str]:
-    """Fetch captions from a public Invidious instance (bypasses Railway IP blocks).
-    Returns ((text, lang_code), None) on success or (None, error_reason) on failure.
+    """Fetch captions from public Invidious instances (bypasses Railway IP blocks).
+    Returns ((text, lang_code), None) on success or (None, last_error) on failure.
     """
+    last_error = "no instances tried"
+
     for base in INVIDIOUS_INSTANCES:
         try:
-            r = httpx.get(f"{base}/api/v1/captions/{video_id}", timeout=10)
+            r = httpx.get(f"{base}/api/v1/captions/{video_id}", timeout=8)
             if r.status_code != 200:
-                logger.debug("Invidious %s returned %s for %s", base, r.status_code, video_id)
+                last_error = f"{base}: HTTP {r.status_code}"
+                logger.warning("Invidious %s HTTP %s for %s", base, r.status_code, video_id)
                 continue
 
-            captions = r.json().get("captions", [])
+            data = r.json()
+            captions = data.get("captions", [])
             if not captions:
-                return None, "No captions listed on Invidious"
+                last_error = f"{base}: no captions in response"
+                logger.warning("Invidious %s: empty captions for %s", base, video_id)
+                continue  # try next instance — do NOT return here
 
-            # Prefer requested language, otherwise take the first available
+            # Prefer requested language, fallback to any available
             target = next(
                 (c for c in captions if c.get("languageCode", "").startswith(language)),
                 captions[0],
             )
             cap_url = target.get("url", "")
             if not cap_url:
+                last_error = f"{base}: caption entry missing URL"
                 continue
 
             full_url = f"{base}{cap_url}" if cap_url.startswith("/") else cap_url
-            r2 = httpx.get(full_url, timeout=15)
+            r2 = httpx.get(full_url, timeout=12)
             if r2.status_code != 200:
+                last_error = f"{base}: VTT fetch HTTP {r2.status_code}"
+                logger.warning("Invidious %s VTT fetch HTTP %s for %s", base, r2.status_code, video_id)
                 continue
 
             text = _clean_transcript_text(_parse_vtt(r2.text))
             if not text:
+                last_error = f"{base}: VTT parsed to empty text"
+                logger.warning("Invidious %s: empty text after VTT parse for %s", base, video_id)
                 continue
 
             lang_code = target.get("languageCode", language)
-            logger.info("Invidious transcript OK for %s via %s (%s)", video_id, base, lang_code)
+            logger.info("Invidious OK: %s via %s (lang=%s)", video_id, base, lang_code)
             return (text, lang_code), None
 
+        except httpx.TimeoutException:
+            last_error = f"{base}: timeout"
+            logger.warning("Invidious %s timed out for %s", base, video_id)
         except Exception as exc:
-            logger.warning("Invidious %s failed for %s: %s", base, video_id, exc)
-            continue
+            last_error = f"{base}: {type(exc).__name__}: {exc}"
+            logger.warning("Invidious %s error for %s: %s", base, video_id, exc)
 
-    return None, "All Invidious instances failed"
+    return None, f"Invidious failed — {last_error}"
 
 
 def _fetch_via_whisper(video_id: str, video_url: str) -> tuple[str, str] | None:
