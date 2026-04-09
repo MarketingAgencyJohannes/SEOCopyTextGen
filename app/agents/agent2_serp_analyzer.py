@@ -11,6 +11,7 @@ Pipeline:
 import asyncio
 import json
 import logging
+import math
 import re
 from urllib.parse import urlparse
 
@@ -42,25 +43,39 @@ async def _serper_search(keyword: str, num: int, language: str) -> list[dict]:
     if not settings.serper_api_key:
         raise ValueError("SERPER_API_KEY is not set")
 
-    async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.post(
-            "https://google.serper.dev/search",
-            headers={"X-API-KEY": settings.serper_api_key, "Content-Type": "application/json"},
-            json={"q": keyword, "num": num, "hl": language},
-        )
-        resp.raise_for_status()
-        data = resp.json()
+    # Map language codes to Google country codes for localised results
+    gl_map = {"de": "de", "en": "us", "fr": "fr", "es": "es"}
+    gl = gl_map.get(language, language)
 
-    organic = data.get("organic", [])
-    return [
-        {
-            "position": item.get("position", i + 1),
-            "url": item.get("link", ""),
-            "title": item.get("title", ""),
-            "domain": urlparse(item.get("link", "")).netloc,
-        }
-        for i, item in enumerate(organic)
-    ]
+    all_items: list[dict] = []
+    seen_urls: set[str] = set()
+    pages_needed = math.ceil(num / 10)
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        for page in range(1, pages_needed + 1):
+            resp = await client.post(
+                "https://google.serper.dev/search",
+                headers={"X-API-KEY": settings.serper_api_key, "Content-Type": "application/json"},
+                json={"q": keyword, "num": 10, "hl": language, "gl": gl, "page": page},
+            )
+            resp.raise_for_status()
+            organic = resp.json().get("organic", [])
+            logger.info("Serper page %d returned %d organic results", page, len(organic))
+            for item in organic:
+                url = item.get("link", "")
+                if url and url not in seen_urls:
+                    seen_urls.add(url)
+                    all_items.append({
+                        "position": item.get("position", len(all_items) + 1),
+                        "url": url,
+                        "title": item.get("title", ""),
+                        "domain": urlparse(url).netloc,
+                    })
+            if len(all_items) >= num:
+                break
+
+    logger.info("Serper total: %d unique results for '%s' (requested %d)", len(all_items), keyword, num)
+    return all_items[:num]
 
 
 # ---------------------------------------------------------------------------
@@ -179,6 +194,19 @@ def _identify_gaps(keyword: str, summaries: list[PageSummary]) -> dict:
         "You are an SEO content strategist. Analyse the provided SERP data and identify content gaps.\n\n"
         "You MUST return a raw JSON object — no markdown, no code blocks, no backticks, no explanation text.\n"
         "Start your response with { and end with }.\n\n"
+        "KEYWORD INTENT TYPES (use these definitions for content_type):\n"
+        '  "commercial"     — User is researching products/services before making a purchase decision. '
+        'Example: "best CRM software", "Steuerberater Freiburg Kosten".\n'
+        '  "transactional"  — User is ready to act or convert right now. '
+        'Example: "Steuerberater Freiburg buchen", "psychologische Beratung Termin".\n'
+        '  "informational"  — User wants to learn or understand something. '
+        'Example: "was ist psychologische Beratung", "how does SEO work".\n'
+        '  "navigational"   — User is looking for a specific website or brand.\n\n'
+        "IMPORTANT — content_type priority rule:\n"
+        "  1. First, look for gaps with 'commercial' intent (high conversion value).\n"
+        "  2. Then look for 'transactional' gaps (direct conversion intent).\n"
+        "  3. Only use 'informational' if no commercial or transactional gap can be identified for that topic.\n"
+        "  Use 'navigational' only when clearly applicable.\n\n"
         "Required JSON structure:\n"
         '{\n'
         '  "saturated_topics": ["topic covered by 3+ pages", ...],\n'
@@ -188,13 +216,15 @@ def _identify_gaps(keyword: str, summaries: list[PageSummary]) -> dict:
         '      "topic": "specific angle not yet covered",\n'
         '      "suggested_title": "H1 title for a new page targeting this gap",\n'
         '      "competition_level": "Low",\n'
-        '      "content_type": "informational",\n'
-        '      "reasoning": "Why this gap exists in 1-2 sentences."\n'
+        '      "content_type": "commercial",\n'
+        '      "reasoning": "Why this gap exists and why commercial/transactional intent applies."\n'
         '    }\n'
         '  ]\n'
         '}\n\n'
         'competition_level must be exactly one of: "Low", "Medium", "High".\n'
-        "Aim for at least 3-5 content_gaps if gaps exist. Be specific and actionable."
+        'content_type must be exactly one of: "commercial", "transactional", "informational", "navigational".\n'
+        "Aim for at least 3-5 content_gaps if gaps exist. Be specific and actionable.\n"
+        "Prefer commercial and transactional gaps — these have the highest conversion value for the business."
     )
     user = (
         f"Target keyword: {keyword}\n\n"
@@ -227,6 +257,15 @@ def _build_report(keyword: str, result: SerpAnalysisResult) -> bytes:
         "",
         f"Pages analyzed: {result.pages_analyzed}",
         f"Pages failed: {result.pages_failed}",
+        "",
+        "ANALYZED ARTICLES (Google Rankings):",
+    ]
+    for s in result.page_summaries:
+        status_tag = "[ok]  " if s.crawl_status == "ok" else "[FAIL]"
+        title = s.title or "No title"
+        domain = s.domain or ""
+        lines.append(f"  {s.position:2d}. {status_tag} {s.url}  — {title} ({domain})")
+    lines += [
         "",
         "SATURATED TOPICS (already well covered):",
         *[f"  • {t}" for t in result.saturated_topics],

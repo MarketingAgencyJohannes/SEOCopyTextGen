@@ -1,8 +1,11 @@
 import json
+import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.database import Job, get_session
+
+logger = logging.getLogger(__name__)
 
 
 def create_job(agent: str) -> str:
@@ -45,3 +48,17 @@ def get_job(job_id: str) -> dict | None:
         if job is None:
             return None
         return job.to_dict()
+
+
+def purge_old_jobs(days: int = 30) -> int:
+    """Delete jobs older than `days` days. Returns the number of deleted rows."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    with get_session() as session:
+        deleted = (
+            session.query(Job)
+            .filter(Job.created_at < cutoff)
+            .delete(synchronize_session=False)
+        )
+        session.commit()
+    logger.info("Purged %d job(s) older than %d days", deleted, days)
+    return deleted

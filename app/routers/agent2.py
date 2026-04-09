@@ -47,6 +47,8 @@ def download_report(job_id: str):
     saturated = result.get("saturated_topics", [])
     underserved = result.get("underserved_topics", [])
 
+    page_summaries = result.get("page_summaries", [])
+
     lines = [
         f"CONTENT GAP REPORT — {result.get('keyword', '')}",
         "=" * 60,
@@ -54,6 +56,16 @@ def download_report(job_id: str):
         f"Pages analyzed: {result.get('pages_analyzed', 0)}",
         f"Pages failed:   {result.get('pages_failed', 0)}",
         f"Content gaps:   {len(gaps)}",
+        "",
+        "ANALYZED ARTICLES (Google Rankings):",
+    ]
+    for s in page_summaries:
+        status_tag = "[ok]  " if s.get("crawl_status") == "ok" else "[FAIL]"
+        title = s.get("title") or "No title"
+        domain = s.get("domain") or ""
+        pos = s.get("position", 0)
+        lines.append(f"  {pos:2d}. {status_tag} {s.get('url', '')}  — {title} ({domain})")
+    lines += [
         "",
         "SATURATED TOPICS (already well covered — avoid duplication):",
         *([f"  • {t}" for t in saturated] or ["  (none identified)"]),

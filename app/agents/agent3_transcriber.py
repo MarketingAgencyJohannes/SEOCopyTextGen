@@ -33,6 +33,12 @@ INVIDIOUS_INSTANCES = [
     "https://invidious.privacydev.net",
     "https://inv.nadeko.net",
     "https://invidious.lunar.icu",
+    "https://invidious.nerdvpn.de",
+    "https://iv.datura.network",
+    "https://invidious.perennialte.ch",
+    "https://invidious.reallyaweso.me",
+    "https://invidious.no-logs.com",
+    "https://invidious.slipfox.xyz",
 ]
 
 # Whisper model loaded once at module level to avoid per-request cold start

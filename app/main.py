@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import os
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,8 +8,20 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import create_tables
-from app.services.job_store import get_job
+from app.services.job_store import get_job, purge_old_jobs
 from app.routers import health, agent1, agent2, agent3, agent4
+
+logger = logging.getLogger(__name__)
+
+
+async def _daily_cleanup_task():
+    """Background coroutine that purges jobs older than 30 days every 24 hours."""
+    while True:
+        await asyncio.sleep(86400)  # wait 24 h before first run, then repeat
+        try:
+            purge_old_jobs(days=30)
+        except Exception as exc:
+            logger.error("Job cleanup failed: %s", exc)
 
 app = FastAPI(
     title="SEO Copy Text Generator",
@@ -37,6 +51,7 @@ async def api_key_middleware(request: Request, call_next):
 @app.on_event("startup")
 async def on_startup():
     create_tables()
+    asyncio.create_task(_daily_cleanup_task())
 
 
 @app.get("/jobs/{job_id}", tags=["Jobs"])
