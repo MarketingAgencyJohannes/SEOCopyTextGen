@@ -66,7 +66,7 @@ async def _serper_search(keyword: str, num: int, language: str) -> list[dict]:
                 if url and url not in seen_urls:
                     seen_urls.add(url)
                     all_items.append({
-                        "position": item.get("position", len(all_items) + 1),
+                        "position": len(all_items) + 1,  # absolute rank, not page-relative
                         "url": url,
                         "title": item.get("title", ""),
                         "domain": urlparse(url).netloc,
