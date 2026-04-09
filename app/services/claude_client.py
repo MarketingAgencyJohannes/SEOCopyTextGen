@@ -40,10 +40,14 @@ def complete(
             time.sleep(wait)
         except anthropic.APIStatusError as e:
             last_error = e
-            # 529 = overloaded, 500 = server error — both are transient, retry with backoff
+            # 529 = overloaded, 500/503 = server error — transient, retry with aggressive backoff
             if e.status_code in (529, 500, 503):
-                wait = min(10 * (attempt + 1), 60)
-                logger.warning("Claude API %d overloaded (attempt %d/%d), retrying in %ds", e.status_code, attempt + 1, retries, wait)
+                # 30s → 60s → 120s → 120s → ... (capped at 120s)
+                wait = min(30 * (2 ** attempt), 120)
+                logger.warning(
+                    "Claude API %d overloaded (attempt %d/%d), retrying in %ds — total budget ~10min",
+                    e.status_code, attempt + 1, retries, wait,
+                )
                 time.sleep(wait)
             else:
                 # Non-transient error (400, 401, etc.) — don't retry
