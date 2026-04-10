@@ -148,6 +148,10 @@ b) Not every paragraph has the same internal structure (claim-support, question-
 c) 1-2 sentences may use a slightly more informal register than the surrounding prose
 d) No two consecutive paragraphs may begin with the same grammatical structure
 e) At least one H2 section must contain a notably shorter or longer sentence than its neighbours
+f) Occasionally — roughly 1 in every 4 texts — include exactly one imperceptible human slip
+   in a body paragraph only: a missing comma after an introductory clause, a very minor
+   phrasing awkwardness, or a subtle word-order variation a fluent writer might produce.
+   NEVER in H1, H2, bullet points, or bold elements.
 
 ## BANNED WORDS/PHRASES — never use:
 comprehensive, delve, essential, diverse, tailored, holistic, optimal, robust, notably,
@@ -161,7 +165,10 @@ H1: [title containing keyword]
 [intro paragraph 1 — keyword in sentence 1]
 [intro paragraph 2 — keyword + location reference]
 
-H2: [Keyword H2 — Stage 1, naturally worded question or description, contains keyword]
+H2: [Keyword H2 — Stage 1: embed the keyword naturally MID-sentence, never at the start.
+     Example: "Wie meine [keyword] Ihnen hilft, den nächsten Schritt zu gehen"
+     or "Wann ist [keyword] die richtige Wahl für Sie?"
+     The keyword must feel like a natural part of the sentence, not a label bolted to the front.]
 [paragraph 1]
 • [bullet 1 — 8-15 words]
 • [bullet 2 — 8-15 words]
@@ -211,7 +218,10 @@ STRUCTURE REQUIREMENTS:
   (7 uses in 850 words = 0.82% density — the minimum required)
 - Keyword density: 0.8%-1.2% of total word count — hitting 7+ uses above guarantees this
 - Exactly 1 H1 (contains keyword)
-- 5-6 H2s total; first H2 contains keyword; Expert H2 = "{b.company_name}: Experte für {req.keyword}"
+- 5-6 H2s total; first H2 contains keyword embedded naturally MID-sentence — NOT at the start.
+  Bad:  "H2: Karriereberatung Freiburg – Wann brauchen Sie Hilfe?"
+  Good: "H2: Wie meine Karriereberatung in Freiburg Ihnen hilft, den nächsten Schritt zu wagen"
+  Expert H2 = "{b.company_name}: Experte für {req.keyword}"
 - Exactly 4 bullet points after the first H2 (8-15 words each)
 - 10-12 bold elements total using format: <strong>Short label.</strong> Explanation sentence.
   - Distribute across H2 sections: Stage 2 H2 gets 1-2 bold, Stages 3-5 H2s each get 2-3 bold
